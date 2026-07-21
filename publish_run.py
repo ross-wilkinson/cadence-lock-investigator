@@ -41,6 +41,7 @@ def _get_refresh_token() -> str:
 
 def _summarize(payload: dict, flag: str) -> dict:
     hr_values = [v for v in payload["garmin_hr"] if v is not None]
+    fitbit_values = [v for v in payload["fitbit_hr"] if v is not None]
     cadence_values = [v for v in payload["cadence_spm"] if v is not None and v > 0]
     return {
         "id": payload["activity_id"],
@@ -48,6 +49,7 @@ def _summarize(payload: dict, flag: str) -> dict:
         "end": payload["time"][-1] if payload["time"] else None,
         "duration_seconds": len(payload["time"]),
         "avg_garmin_hr": round(sum(hr_values) / len(hr_values), 1) if hr_values else None,
+        "avg_fitbit_hr": round(sum(fitbit_values) / len(fitbit_values), 1) if fitbit_values else None,
         "avg_cadence_spm": round(sum(cadence_values) / len(cadence_values), 1) if cadence_values else None,
         "flag": flag,
     }

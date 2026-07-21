@@ -240,6 +240,7 @@
                 const stats = document.createElement('div');
                 stats.className = 'runStats';
                 stats.appendChild(buildStat('Avg Garmin HR', formatNumber(run.avg_garmin_hr, ' bpm')));
+                stats.appendChild(buildStat('Avg Fitbit HR', formatNumber(run.avg_fitbit_hr, ' bpm')));
                 stats.appendChild(buildStat('Avg Cadence', formatNumber(run.avg_cadence_spm, ' spm')));
 
                 card.appendChild(meta);
