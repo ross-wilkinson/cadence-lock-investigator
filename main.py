@@ -49,14 +49,14 @@ def get_token(provider: str = "google") -> str:
     return row[0]
 
 
-async def refresh_google_token(refresh_token: str) -> str:
+def refresh_google_token(refresh_token: str) -> str:
     """Mints a fresh Google access token from a long-lived refresh token.
 
     Used by the offline publish pipeline, which has no local investigator.db
     and can't run the interactive /login/google browser flow.
     """
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.post("https://oauth2.googleapis.com/token", data={
+    with httpx.Client(timeout=20.0) as client:
+        response = client.post("https://oauth2.googleapis.com/token", data={
             "client_id": GOOGLE_CLIENT_ID,
             "client_secret": GOOGLE_CLIENT_SECRET,
             "refresh_token": refresh_token,
@@ -612,132 +612,146 @@ def inspect_schema():
     return {"schema": schema_map}
 
 
-@app.get("/fetch-all-data")
-async def fetch_all_data():
-    # Initialize empty frames to ensure scope safety
+def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -> dict:
+    """Fetches the latest Garmin + Fitbit (via Google Health) telemetry and
+    merges them into a single 1Hz time-aligned payload.
+
+    Raises RuntimeError on failure - callers translate that into an HTTP
+    response (the live /fetch-all-data route) or a CLI error (publish_run.py).
+    Set use_garmin_cache=False to always pull the real latest activity instead
+    of replaying cache_garmin.json (the publish pipeline always does this).
+    """
     fitbit_df = pd.DataFrame()
     garmin_df = pd.DataFrame()
-    
-    try:
-        # --- SECTION 1: Fitbit Data ---
-        google_token = get_token("google")
-        headers = {"Authorization": f"Bearer {google_token}"}
-        
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            ex_res = await client.get("https://health.googleapis.com/v4/users/me/dataTypes/exercise/dataPoints", headers=headers)
-            if ex_res.status_code != 200:
-                return {"error": f"Google Health exercise API returned {ex_res.status_code}: {ex_res.text}"}
-            ex_data = [dp for dp in ex_res.json().get("dataPoints", []) if dp.get("exercise", {}).get("exerciseType") == "RUNNING"]
+    activity_id = None
+    headers = {"Authorization": f"Bearer {google_access_token}"}
 
-            if ex_data:
-                latest = max(ex_data, key=lambda x: x.get("exercise", {}).get("interval", {}).get("startTime", ""))
-                start_t = latest.get("exercise", {}).get("interval", {}).get("startTime")
-                end_t = latest.get("exercise", {}).get("interval", {}).get("endTime")
+    # --- SECTION 1: Fitbit Data (via Google Health) ---
+    with httpx.Client(timeout=20.0) as client:
+        ex_res = client.get("https://health.googleapis.com/v4/users/me/dataTypes/exercise/dataPoints", headers=headers)
+        if ex_res.status_code != 200:
+            raise RuntimeError(f"Google Health exercise API returned {ex_res.status_code}: {ex_res.text}")
+        ex_data = [dp for dp in ex_res.json().get("dataPoints", []) if dp.get("exercise", {}).get("exerciseType") == "RUNNING"]
 
-                hr_res = await client.get(
-                    "https://health.googleapis.com/v4/users/me/dataTypes/heart-rate/dataPoints",
-                    headers=headers,
-                    params={"filter": f'heart_rate.sample_time.physical_time >= "{start_t}" AND heart_rate.sample_time.physical_time < "{end_t}"', "pageSize": 5000}
-                )
-                if hr_res.status_code != 200:
-                    return {"error": f"Google Health heart-rate API returned {hr_res.status_code}: {hr_res.text}"}
+        if ex_data:
+            latest = max(ex_data, key=lambda x: x.get("exercise", {}).get("interval", {}).get("startTime", ""))
+            start_t = latest.get("exercise", {}).get("interval", {}).get("startTime")
+            end_t = latest.get("exercise", {}).get("interval", {}).get("endTime")
 
-                hr_data_points = hr_res.json().get("dataPoints", [])
-                fitbit_data = []
-                for dp in hr_data_points:
-                    src = dp.get("dataSource", {})
-                    platform = src.get("platform", "")
-                    app_pkg = src.get("application", {}).get("packageName", "")
+            hr_res = client.get(
+                "https://health.googleapis.com/v4/users/me/dataTypes/heart-rate/dataPoints",
+                headers=headers,
+                params={"filter": f'heart_rate.sample_time.physical_time >= "{start_t}" AND heart_rate.sample_time.physical_time < "{end_t}"', "pageSize": 5000}
+            )
+            if hr_res.status_code != 200:
+                raise RuntimeError(f"Google Health heart-rate API returned {hr_res.status_code}: {hr_res.text}")
 
-                    if not (platform == "FITBIT" or "fitbit" in app_pkg.lower()):
-                        continue
+            hr_data_points = hr_res.json().get("dataPoints", [])
+            fitbit_data = []
+            for dp in hr_data_points:
+                src = dp.get("dataSource", {})
+                platform = src.get("platform", "")
+                app_pkg = src.get("application", {}).get("packageName", "")
 
-                    t = dp.get("heartRate", {}).get("sampleTime", {}).get("physicalTime")
-                    bpm = dp.get("heartRate", {}).get("beatsPerMinute")
-                    if t and bpm is not None:
-                        fitbit_data.append({"time": pd.to_datetime(t), "fitbit_hr": bpm})
-                
-                fitbit_df = pd.DataFrame(fitbit_data)
-                if not fitbit_df.empty:
-                    fitbit_df['fitbit_hr'] = pd.to_numeric(fitbit_df['fitbit_hr'], errors='coerce')
-                    fitbit_df = fitbit_df.set_index('time').resample('1s').mean()
-            
-            print(f"DEBUG: Fitbit rows: {len(fitbit_df)}")
+                if not (platform == "FITBIT" or "fitbit" in app_pkg.lower()):
+                    continue
 
-        # --- SECTION 2: Garmin Data ---
-        cache_file = "cache_garmin.json"
-        if os.path.exists(cache_file):
-            with open(cache_file, "r") as f:
-                details = json.load(f)
-        else:
-            garmin_client = Garmin(os.getenv("GARMIN_EMAIL"), os.getenv("GARMIN_PASSWORD"))
-            garmin_client.login()
-            activities = garmin_client.get_activities(0, 1)
-            if activities:
-                details = garmin_client.get_activity_details(activities[0]['activityId'])
+                t = dp.get("heartRate", {}).get("sampleTime", {}).get("physicalTime")
+                bpm = dp.get("heartRate", {}).get("beatsPerMinute")
+                if t and bpm is not None:
+                    fitbit_data.append({"time": pd.to_datetime(t), "fitbit_hr": bpm})
 
+            fitbit_df = pd.DataFrame(fitbit_data)
+            if not fitbit_df.empty:
+                fitbit_df['fitbit_hr'] = pd.to_numeric(fitbit_df['fitbit_hr'], errors='coerce')
+                fitbit_df = fitbit_df.set_index('time').resample('1s').mean()
+
+        print(f"DEBUG: Fitbit rows: {len(fitbit_df)}")
+
+    # --- SECTION 2: Garmin Data ---
+    cache_file = "cache_garmin.json"
+    details = None
+    if use_garmin_cache and os.path.exists(cache_file):
+        with open(cache_file, "r") as f:
+            details = json.load(f)
+    else:
+        garmin_client = Garmin(os.getenv("GARMIN_EMAIL"), os.getenv("GARMIN_PASSWORD"))
+        garmin_client.login()
+        activities = garmin_client.get_activities(0, 1)
+        if activities:
+            details = garmin_client.get_activity_details(activities[0]['activityId'])
+            if use_garmin_cache:
                 with open(cache_file, "w") as f:
                     json.dump(details, f)
-        
-        if 'details' in locals():
-            garmin_df = parse_garmin_metrics(details)
-            garmin_df['garmin_hr'] = pd.to_numeric(garmin_df['garmin_hr'], errors='coerce')
-            garmin_df['cadence_spm'] = pd.to_numeric(garmin_df['cadence_spm'], errors='coerce')
-            
-        print(f"DEBUG: Garmin rows: {len(garmin_df)}")
 
+    if details is not None:
+        activity_id = details.get("activityId")
+        garmin_df = parse_garmin_metrics(details)
+        garmin_df['garmin_hr'] = pd.to_numeric(garmin_df['garmin_hr'], errors='coerce')
+        garmin_df['cadence_spm'] = pd.to_numeric(garmin_df['cadence_spm'], errors='coerce')
+
+    print(f"DEBUG: Garmin rows: {len(garmin_df)}")
+
+    if not garmin_df.empty:
         # --- DEBUG: Inspecting Garmin DF ---
         print(f"DEBUG: Garmin head (start): {garmin_df.head(5)}")
         print(f"DEBUG: Garmin tail (end): {garmin_df.tail(5)}")
-        
+
         # Check for nulls/zeros
         null_cadence = garmin_df['cadence_spm'].isna().sum()
         zero_cadence = (garmin_df['cadence_spm'] == 0).sum()
         print(f"DEBUG: Null cadence values: {null_cadence}")
         print(f"DEBUG: Zero cadence values: {zero_cadence}")
 
-        # --- SECTION 3: Merge ---
-        if fitbit_df.empty and garmin_df.empty:
-            return {"error": "No data found for both providers."}
+    # --- SECTION 3: Merge ---
+    if fitbit_df.empty and garmin_df.empty:
+        raise RuntimeError("No data found for both providers.")
 
-        # Handle timezones safely
-        if not garmin_df.empty:
-            if garmin_df.index.tz is None:
-                garmin_df.index = garmin_df.index.tz_localize('UTC')
-            target_tz = garmin_df.index.tz
+    # Handle timezones safely
+    if not garmin_df.empty:
+        if garmin_df.index.tz is None:
+            garmin_df.index = garmin_df.index.tz_localize('UTC')
+        target_tz = garmin_df.index.tz
+    else:
+        target_tz = 'UTC'
+
+    if not fitbit_df.empty:
+        if fitbit_df.index.tz is None:
+            fitbit_df.index = fitbit_df.index.tz_localize(target_tz)
         else:
-            target_tz = 'UTC'
+            fitbit_df.index = fitbit_df.index.tz_convert(target_tz)
 
-        if not fitbit_df.empty:
-            if fitbit_df.index.tz is None:
-                fitbit_df.index = fitbit_df.index.tz_localize(target_tz)
-            else:
-                fitbit_df.index = fitbit_df.index.tz_convert(target_tz)
+    # 1. Outer join (no filling)
+    merged_df = garmin_df.join(fitbit_df, how='outer')
 
-        # 1. Outer join (no filling)
-        merged_df = garmin_df.join(fitbit_df, how='outer')
+    # 2. Localize time
+    if merged_df.index.tz is not None:
+        merged_df.index = merged_df.index.tz_convert('America/Los_Angeles')
 
-        # 2. Localize time
-        if merged_df.index.tz is not None:
-             merged_df.index = merged_df.index.tz_convert('America/Los_Angeles')
-        
-        merged_df = merged_df.reset_index()
-        merged_df['time'] = merged_df['time'].astype(str)
-        
-        # 3. ROBUST CLEANING: Replace NaNs with None for JSON compliance
-        # This forces all NaN/inf values to become 'null' in the JSON output
-        merged_df = merged_df.replace({np.nan: None})
-        
-        # 4. Final safety check: ensure no Inf/-Inf values remain
-        merged_df = merged_df.replace([np.inf, -np.inf], None)
+    merged_df = merged_df.reset_index()
+    merged_df['time'] = merged_df['time'].astype(str)
 
-        return {
-            "time": merged_df['time'].tolist(),
-            "garmin_hr": merged_df['garmin_hr'].tolist(),
-            "fitbit_hr": merged_df['fitbit_hr'].tolist(),
-            "cadence_spm": merged_df['cadence_spm'].tolist()
-        }
+    # 3. ROBUST CLEANING: Replace NaNs with None for JSON compliance
+    # This forces all NaN/inf values to become 'null' in the JSON output
+    merged_df = merged_df.replace({np.nan: None})
 
+    # 4. Final safety check: ensure no Inf/-Inf values remain
+    merged_df = merged_df.replace([np.inf, -np.inf], None)
+
+    return {
+        "activity_id": activity_id,
+        "time": merged_df['time'].tolist(),
+        "garmin_hr": merged_df['garmin_hr'].tolist(),
+        "fitbit_hr": merged_df['fitbit_hr'].tolist(),
+        "cadence_spm": merged_df['cadence_spm'].tolist()
+    }
+
+
+@app.get("/fetch-all-data")
+async def fetch_all_data():
+    try:
+        google_token = get_token("google")
+        return build_run_payload(google_token)
     except HTTPException as e:
         print(f"DEBUG: Error: {e.status_code} {e.detail}")
         return {"error": e.detail}

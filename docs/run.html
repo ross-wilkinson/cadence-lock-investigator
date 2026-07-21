@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Cadence Lock Investigation</title>
+        <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+        <style>
+            * { box-sizing: border-box; }
+            html, body { height: 100%; }
+
+            :root {
+                color-scheme: light;
+                --page-plane:      #f9f9f7;
+                --surface-1:       #fcfcfb;
+                --text-primary:    #0b0b0b;
+                --text-secondary:  #52514e;
+                --text-muted:      #898781;
+                --gridline:        #e1e0d9;
+                --baseline:        #c3c2b7;
+                --border:          rgba(11,11,11,0.10);
+                --series-garmin:   #7b3294;
+                --series-fitbit:   #008837;
+                --series-cadence:  #404040;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    color-scheme: dark;
+                    --page-plane:      #0d0d0d;
+                    --surface-1:       #1a1a19;
+                    --text-primary:    #ffffff;
+                    --text-secondary:  #c3c2b7;
+                    --text-muted:      #898781;
+                    --gridline:        #2c2c2a;
+                    --baseline:        #383835;
+                    --border:          rgba(255,255,255,0.10);
+                    --series-garmin:   #7b3294;
+                    --series-fitbit:   #008837;
+                    --series-cadence:  #f7f7f7;
+                }
+            }
+
+            body {
+                font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+                margin: 0;
+                padding: 20px;
+                background: var(--page-plane);
+                color: var(--text-primary);
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+            h1 { font-size: 20px; font-weight: 600; margin: 0; color: var(--text-primary); }
+            #subtitle { font-size: 13px; color: var(--text-secondary); margin: 2px 0 0; }
+
+            #backLink {
+                font-size: 13px;
+                color: var(--text-secondary);
+                text-decoration: none;
+                margin: 2px 0 0;
+                display: inline-block;
+            }
+            #backLink:hover { color: var(--text-primary); }
+
+            #tableToggle {
+                font: inherit;
+                font-size: 13px;
+                color: var(--text-secondary);
+                background: var(--surface-1);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 6px 12px;
+                cursor: pointer;
+            }
+            #tableToggle:hover { color: var(--text-primary); }
+
+            #loader { font-size: 14px; color: var(--text-secondary); text-align: center; margin-top: 50px; }
+
+            #graph {
+                flex: 1 1 auto;
+                width: 100%;
+                min-height: 0;
+                background: var(--surface-1);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+            }
+
+            #tableWrap {
+                display: none;
+                max-height: 40vh;
+                overflow: auto;
+                background: var(--surface-1);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+            }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            thead th {
+                position: sticky; top: 0;
+                background: var(--surface-1);
+                text-align: right;
+                color: var(--text-muted);
+                font-weight: 600;
+                padding: 8px 12px;
+                border-bottom: 1px solid var(--gridline);
+            }
+            thead th:first-child, td:first-child { text-align: left; }
+            td {
+                text-align: right;
+                padding: 6px 12px;
+                color: var(--text-secondary);
+                font-variant-numeric: tabular-nums;
+                border-bottom: 1px solid var(--gridline);
+                white-space: nowrap;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <div>
+                <h1>Cadence Lock Investigation</h1>
+                <p id="subtitle">Garmin vs. Fitbit heart rate against stride cadence &mdash; gaps in sensor reporting are shown as breaks, never filled.</p>
+                <a id="backLink" href="index.html">&larr; Back to all runs</a>
+            </div>
+            <button id="tableToggle" type="button">View as table</button>
+        </header>
+
+        <div id="loader">Fetching and aligning telemetry&hellip;</div>
+        <div id="graph"></div>
+        <div id="tableWrap"><table>
+            <thead><tr><th>Time</th><th>Garmin HR</th><th>Fitbit HR</th><th>Garmin Cadence (SPM)</th></tr></thead>
+            <tbody id="tableBody"></tbody>
+        </table></div>
+
+        <script>
+            const mql = window.matchMedia('(prefers-color-scheme: dark)');
+            const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+            function theme() {
+                return {
+                    surface: cssVar('--surface-1'),
+                    primary: cssVar('--text-primary'),
+                    secondary: cssVar('--text-secondary'),
+                    muted: cssVar('--text-muted'),
+                    grid: cssVar('--gridline'),
+                    baseline: cssVar('--baseline'),
+                    border: cssVar('--border'),
+                    garmin: cssVar('--series-garmin'),
+                    fitbit: cssVar('--series-fitbit'),
+                    cadence: cssVar('--series-cadence')
+                };
+            }
+
+            function buildLayout(t) {
+                return {
+                    margin: { t: 16, r: 24, l: 56, b: 40 },
+                    paper_bgcolor: t.surface,
+                    plot_bgcolor: t.surface,
+                    font: { family: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: t.secondary, size: 12 },
+                    legend: {
+                        orientation: 'h',
+                        x: 0, xanchor: 'left',
+                        y: 1.08, yanchor: 'bottom',
+                        font: { color: t.secondary }
+                    },
+                    xaxis: {
+                        title: { text: 'Time', font: { color: t.muted } },
+                        gridcolor: t.grid,
+                        linecolor: t.baseline,
+                        tickfont: { color: t.muted },
+                        rangeslider: { visible: true, thickness: 0.06, bgcolor: t.surface, bordercolor: t.border, borderwidth: 1 }
+                    },
+                    yaxis: {
+                        title: { text: 'BPM / SPM', font: { color: t.muted } },
+                        gridcolor: t.grid,
+                        zerolinecolor: t.baseline,
+                        tickfont: { color: t.muted }
+                    },
+                    hovermode: 'x unified',
+                    hoverlabel: { bgcolor: t.surface, bordercolor: t.border, font: { color: t.primary } }
+                };
+            }
+
+            function buildTraces(data, t) {
+                return [
+                    {
+                        x: data.time, y: data.garmin_hr, name: 'Garmin HR',
+                        mode: 'markers',
+                        line: { color: t.garmin, size: 1 },
+                        connectgaps: false
+                    },
+                    {
+                        x: data.time, y: data.fitbit_hr, name: 'Fitbit HR',
+                        mode: 'markers',
+                        line: { color: t.fitbit, size: 1 },
+                        connectgaps: false
+                    },
+                    {
+                        x: data.time, y: data.cadence_spm, name: 'Garmin Cadence (SPM)',
+                        mode: 'markers',
+                        line: { color: t.cadence, size: 1 },
+                        connectgaps: false
+                    }
+                ];
+            }
+
+            let latestData = null;
+            let tableBuilt = false;
+
+            function render() {
+                if (!latestData) return;
+                const t = theme();
+                Plotly.react('graph', buildTraces(latestData, t), buildLayout(t), { responsive: true });
+            }
+
+            function buildTable(data) {
+                const rows = data.time.map((time, i) => {
+                    const fmt = (v) => (v === null || v === undefined) ? '&mdash;' : v;
+                    return `<tr><td>${time}</td><td>${fmt(data.garmin_hr[i])}</td><td>${fmt(data.fitbit_hr[i])}</td><td>${fmt(data.cadence_spm[i])}</td></tr>`;
+                }).join('');
+                document.getElementById('tableBody').innerHTML = rows;
+            }
+
+            document.getElementById('tableToggle').addEventListener('click', () => {
+                const wrap = document.getElementById('tableWrap');
+                const showing = wrap.style.display === 'block';
+                if (!showing && !tableBuilt && latestData) {
+                    buildTable(latestData);
+                    tableBuilt = true;
+                }
+                wrap.style.display = showing ? 'none' : 'block';
+                document.getElementById('tableToggle').innerText = showing ? 'View as table' : 'Hide table';
+            });
+
+            mql.addEventListener('change', render);
+            window.addEventListener('resize', () => Plotly.Plots.resize('graph'));
+
+            function showLoaderMessage(message) {
+                const loader = document.getElementById('loader');
+                loader.style.display = '';
+                loader.innerText = message;
+                document.getElementById('graph').style.display = 'none';
+                document.getElementById('tableToggle').style.display = 'none';
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            const runId = params.get('id');
+
+            if (!runId) {
+                showLoaderMessage('No run selected. Go back to the run list and pick a run to view.');
+            } else {
+                fetch(`data/${encodeURIComponent(runId)}.json`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Run ${runId} was not found (HTTP ${response.status}).`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.error) {
+                            showLoaderMessage('Backend Error: ' + data.error);
+                            return;
+                        }
+
+                        document.getElementById('loader').style.display = 'none';
+                        latestData = data;
+                        render();
+
+                        const firstTimestamp = Array.isArray(data.time) ? data.time[0] : null;
+                        const datePart = typeof firstTimestamp === 'string' ? firstTimestamp.slice(0, 10) : null;
+                        document.title = datePart
+                            ? `Run ${data.activity_id || runId} (${datePart}) – Cadence Lock Investigation`
+                            : `Run ${data.activity_id || runId} – Cadence Lock Investigation`;
+                    })
+                    .catch(error => {
+                        showLoaderMessage('Load Error: ' + error.message);
+                    });
+            }
+        </script>
+    </body>
+</html>

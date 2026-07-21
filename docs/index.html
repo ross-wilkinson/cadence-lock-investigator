@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Cadence Lock Investigation &mdash; Runs</title>
+        <style>
+            * { box-sizing: border-box; }
+            html, body { height: 100%; }
+
+            :root {
+                color-scheme: light;
+                --page-plane:      #f9f9f7;
+                --surface-1:       #fcfcfb;
+                --text-primary:    #0b0b0b;
+                --text-secondary:  #52514e;
+                --text-muted:      #898781;
+                --gridline:        #e1e0d9;
+                --baseline:        #c3c2b7;
+                --border:          rgba(11,11,11,0.10);
+                --series-garmin:   #7b3294;
+                --series-fitbit:   #008837;
+                --series-cadence:  #404040;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    color-scheme: dark;
+                    --page-plane:      #0d0d0d;
+                    --surface-1:       #1a1a19;
+                    --text-primary:    #ffffff;
+                    --text-secondary:  #c3c2b7;
+                    --text-muted:      #898781;
+                    --gridline:        #2c2c2a;
+                    --baseline:        #383835;
+                    --border:          rgba(255,255,255,0.10);
+                    --series-garmin:   #7b3294;
+                    --series-fitbit:   #008837;
+                    --series-cadence:  #f7f7f7;
+                }
+            }
+
+            body {
+                font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+                margin: 0;
+                padding: 20px;
+                background: var(--page-plane);
+                color: var(--text-primary);
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+            h1 { font-size: 20px; font-weight: 600; margin: 0; color: var(--text-primary); }
+            #subtitle { font-size: 13px; color: var(--text-secondary); margin: 2px 0 0; }
+
+            #loader { font-size: 14px; color: var(--text-secondary); text-align: center; margin-top: 50px; }
+
+            #runList {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            a.runCard {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                flex-wrap: wrap;
+                background: var(--surface-1);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 14px 18px;
+                text-decoration: none;
+                color: inherit;
+            }
+            a.runCard:hover { border-color: var(--baseline); }
+
+            .runCard .runMeta {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                min-width: 160px;
+            }
+            .runCard .runDate {
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--text-primary);
+            }
+            .runCard .runDuration {
+                font-size: 12px;
+                color: var(--text-muted);
+            }
+
+            .runCard .runStats {
+                display: flex;
+                gap: 24px;
+                flex-wrap: wrap;
+            }
+            .runStat {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                min-width: 90px;
+            }
+            .runStat .statLabel {
+                font-size: 11px;
+                color: var(--text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+            }
+            .runStat .statValue {
+                font-size: 13px;
+                color: var(--text-secondary);
+                font-variant-numeric: tabular-nums;
+            }
+
+            .badge {
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                padding: 3px 10px;
+                border-radius: 999px;
+                white-space: nowrap;
+            }
+            .badge-positive {
+                background: var(--series-garmin);
+                color: #fff;
+            }
+            .badge-negative {
+                background: transparent;
+                color: var(--text-secondary);
+                border: 1px solid var(--text-muted);
+            }
+            .badge-unreviewed {
+                background: transparent;
+                color: var(--text-muted);
+                border: 1px dashed var(--text-muted);
+            }
+
+            #emptyState {
+                font-size: 14px;
+                color: var(--text-secondary);
+                text-align: center;
+                margin-top: 50px;
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <div>
+                <h1>Cadence Lock Investigation</h1>
+                <p id="subtitle">Published runs &mdash; Garmin vs. Fitbit heart rate against stride cadence.</p>
+            </div>
+        </header>
+
+        <div id="loader">Loading published runs&hellip;</div>
+        <div id="emptyState">No runs published yet. Publish a run to see it listed here.</div>
+        <div id="runList"></div>
+
+        <script>
+            function formatDuration(totalSeconds) {
+                if (totalSeconds === null || totalSeconds === undefined || isNaN(totalSeconds)) return '—';
+                const seconds = Math.max(0, Math.round(totalSeconds));
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = seconds % 60;
+                const pad = (n) => String(n).padStart(2, '0');
+                return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+            }
+
+            function formatDate(isoString) {
+                if (!isoString) return 'Unknown date';
+                const d = new Date(isoString);
+                if (isNaN(d.getTime())) return isoString;
+                return d.toLocaleString(undefined, {
+                    year: 'numeric', month: 'short', day: 'numeric',
+                    hour: 'numeric', minute: '2-digit'
+                });
+            }
+
+            function formatNumber(v, suffix) {
+                if (v === null || v === undefined || isNaN(v)) return '—';
+                return `${v}${suffix}`;
+            }
+
+            function badgeFor(flag) {
+                const span = document.createElement('span');
+                let cls = 'badge-unreviewed';
+                let label = 'Unreviewed';
+                if (flag === 'positive') {
+                    cls = 'badge-positive';
+                    label = 'Positive';
+                } else if (flag === 'negative') {
+                    cls = 'badge-negative';
+                    label = 'Negative';
+                }
+                span.className = `badge ${cls}`;
+                span.appendChild(document.createTextNode(label));
+                return span;
+            }
+
+            function buildStat(label, value) {
+                const wrap = document.createElement('div');
+                wrap.className = 'runStat';
+
+                const labelEl = document.createElement('div');
+                labelEl.className = 'statLabel';
+                labelEl.appendChild(document.createTextNode(label));
+
+                const valueEl = document.createElement('div');
+                valueEl.className = 'statValue';
+                valueEl.appendChild(document.createTextNode(value));
+
+                wrap.appendChild(labelEl);
+                wrap.appendChild(valueEl);
+                return wrap;
+            }
+
+            function buildRunCard(run) {
+                const card = document.createElement('a');
+                card.className = 'runCard';
+                card.href = `run.html?id=${encodeURIComponent(run.id)}`;
+
+                const meta = document.createElement('div');
+                meta.className = 'runMeta';
+
+                const dateEl = document.createElement('div');
+                dateEl.className = 'runDate';
+                dateEl.appendChild(document.createTextNode(formatDate(run.start)));
+
+                const durationEl = document.createElement('div');
+                durationEl.className = 'runDuration';
+                durationEl.appendChild(document.createTextNode(formatDuration(run.duration_seconds)));
+
+                meta.appendChild(dateEl);
+                meta.appendChild(durationEl);
+
+                const stats = document.createElement('div');
+                stats.className = 'runStats';
+                stats.appendChild(buildStat('Avg Garmin HR', formatNumber(run.avg_garmin_hr, ' bpm')));
+                stats.appendChild(buildStat('Avg Cadence', formatNumber(run.avg_cadence_spm, ' spm')));
+
+                card.appendChild(meta);
+                card.appendChild(stats);
+                card.appendChild(badgeFor(run.flag));
+
+                return card;
+            }
+
+            function renderRuns(manifest) {
+                const loader = document.getElementById('loader');
+                const emptyState = document.getElementById('emptyState');
+                const list = document.getElementById('runList');
+
+                loader.style.display = 'none';
+
+                if (!Array.isArray(manifest) || manifest.length === 0) {
+                    emptyState.style.display = 'block';
+                    return;
+                }
+
+                manifest.forEach((run) => {
+                    list.appendChild(buildRunCard(run));
+                });
+            }
+
+            fetch('data/index.json')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Manifest not found (HTTP ${response.status}).`);
+                    }
+                    return response.json();
+                })
+                .then(manifest => {
+                    renderRuns(manifest);
+                })
+                .catch(error => {
+                    // No manifest yet (e.g. before the first run has been published)
+                    // reads the same as an empty list, not an error.
+                    document.getElementById('loader').style.display = 'none';
+                    document.getElementById('emptyState').style.display = 'block';
+                });
+        </script>
+    </body>
+</html>
