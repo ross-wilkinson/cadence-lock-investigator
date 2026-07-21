@@ -1,0 +1,6 @@
+.env
+investigator.db
+cache_garmin.json
+__pycache__/
+*.pyc
+venv/
