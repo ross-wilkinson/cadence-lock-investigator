@@ -20,7 +20,7 @@
                 --series-garmin:   #7b3294;
                 --series-fitbit:   #008837;
                 --series-cadence:  #404040;
-                --badge-positive:  #e41a1c;
+                --badge-positive:  #ff7f00;
                 --badge-negative:  #4daf4a;
             }
             @media (prefers-color-scheme: dark) {
@@ -37,7 +37,7 @@
                     --series-garmin:   #7b3294;
                     --series-fitbit:   #008837;
                     --series-cadence:  #f7f7f7;
-                    --badge-positive:  #e41a1c;
+                    --badge-positive:  #ff7f00;
                     --badge-negative:  #4daf4a;
                 }
             }
@@ -55,6 +55,7 @@
 
             header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
             h1 { font-size: 20px; font-weight: 600; margin: 0; color: var(--text-primary); }
+            h2 { font-size: 15px; font-weight: 600; margin: 0; color: var(--text-primary); }
             #subtitle { font-size: 13px; color: var(--text-secondary); margin: 2px 0 0; }
 
             #loader { font-size: 14px; color: var(--text-secondary); text-align: center; margin-top: 50px; }
@@ -64,6 +65,16 @@
                 flex-direction: column;
                 gap: 10px;
             }
+
+            .weekHeading {
+                font-size: 12px;
+                font-weight: 600;
+                margin: 10px 0 -2px;
+                color: var(--text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+            .weekHeading:first-child { margin-top: 0; }
 
             a.runCard {
                 display: flex;
@@ -149,15 +160,106 @@
                 margin-top: 50px;
                 display: none;
             }
+
+            #dashboard {
+                display: none;
+                flex-direction: column;
+                gap: 8px;
+                background: var(--surface-1);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 18px 20px;
+            }
+            #dashboard.visible { display: flex; }
+            #dashboardTiles {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 28px;
+            }
+            .dashboardTile {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                min-width: 150px;
+            }
+            .dashboardTile .dashboardLabel {
+                font-size: 11px;
+                color: var(--text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+            }
+            .dashboardTile .dashboardValue {
+                font-size: 24px;
+                font-weight: 600;
+                color: var(--text-primary);
+                font-variant-numeric: tabular-nums;
+            }
+            .dashboardTile .dashboardSub {
+                font-size: 12px;
+                color: var(--text-secondary);
+            }
+            #dashboardLocomotion {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 28px;
+            }
+            .locomotionGroup {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .locomotionHeading {
+                font-size: 13px;
+                font-weight: 600;
+                margin: 0;
+                color: var(--text-primary);
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+            }
+            .locomotionTiles {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 28px;
+            }
+            #dashboardCaveat {
+                font-size: 11px;
+                color: var(--text-muted);
+                border-top: 1px solid var(--border);
+                padding-top: 8px;
+                margin-top: 4px;
+            }
         </style>
     </head>
     <body>
         <header>
             <div>
                 <h1>Cadence Lock Investigation</h1>
-                <p id="subtitle">Published runs &mdash; Garmin vs. Fitbit heart rate against stride cadence.</p>
+                <p id="subtitle">An ongoing investigation into how often wearable heart-rate sensors suffer from cadence lock, and what that does to training-load estimates.</p>
             </div>
         </header>
+
+        <section id="dashboard">
+            <div id="dashboardTiles"></div>
+            <div id="dashboardLocomotion">
+                <div class="locomotionGroup">
+                    <h3 class="locomotionHeading">Walking</h3>
+                    <div class="locomotionTiles" id="locomotionTilesWalking"></div>
+                </div>
+                <div class="locomotionGroup">
+                    <h3 class="locomotionHeading">Running</h3>
+                    <div class="locomotionTiles" id="locomotionTilesRunning"></div>
+                </div>
+            </div>
+            <div id="dashboardCaveat">
+                "Most common pace during lock", "avg HR error during lock", and "most common true HR" are
+                derived from manually-reviewed cadence-lock flags (which device you judged suspect per run), not an
+                automated per-instant detector, which doesn't exist yet. Each of those three is further split into
+                walking vs. running using an 8:00 min/km pace threshold (8:00/km or slower counts as walking, faster
+                counts as running).
+            </div>
+        </section>
+
+        <h2>Activity Log</h2>
 
         <div id="loader">Loading published runs&hellip;</div>
         <div id="emptyState">No runs published yet. Publish a run to see it listed here.</div>
@@ -184,34 +286,66 @@
                 });
             }
 
-            function formatNumber(v, suffix) {
-                if (v === null || v === undefined || isNaN(v)) return '—';
-                return `${v}${suffix}`;
+            function formatDeviceName(name) {
+                return name || '—';
             }
 
-            function formatSignedPercent(v) {
+            function formatTrimp(v) {
                 if (v === null || v === undefined || isNaN(v)) return '—';
-                const sign = v > 0 ? '+' : '';
-                return `${sign}${v}%`;
+                return `${v.toFixed(1)} TRIMP`;
             }
 
-            function formatBucketDivergence(divergent, total) {
-                if (divergent === null || divergent === undefined || isNaN(divergent)
-                    || total === null || total === undefined || isNaN(total)) return '—';
-                return `${divergent} / ${total} buckets diverged`;
+            function trimpDifferenceLabel(diff) {
+                if (diff === null || diff === undefined || isNaN(diff)) return '—';
+                const brand = diff >= 0 ? 'Garmin' : 'Fitbit';
+                return `+${Math.abs(diff).toFixed(1)} TRIMP (${brand})`;
             }
+
+            function trimpPctDifferenceLabel(pct) {
+                if (pct === null || pct === undefined || isNaN(pct)) return '—';
+                const brand = pct >= 0 ? 'Garmin' : 'Fitbit';
+                return `${Math.abs(pct).toFixed(1)}% (${brand})`;
+            }
+
+            // Bland-Altman-style % difference: uses the mean of both devices as
+            // the denominator (not either device individually), so it stays
+            // consistent with the "no presumed reference device" rule while
+            // still being expressible as a percentage. Shared by the dashboard's
+            // aggregate weekly stat and each run card's compact per-run display.
+            function blandAltmanPctDiff(garmin, fitbit) {
+                if (garmin === null || garmin === undefined || isNaN(garmin) || fitbit === null || fitbit === undefined || isNaN(fitbit)) return null;
+                const mean = (garmin + fitbit) / 2;
+                if (mean === 0) return null;
+                return ((garmin - fitbit) / mean) * 100;
+            }
+
+            // Compact per-run-card TRIMP Difference stat: the existing signed
+            // point-difference label, plus (when computable) the same
+            // Bland-Altman % used by the dashboard, appended with a "·"
+            // separator and shown as a positive magnitude (the point-difference
+            // part right before it already conveys the sign/brand).
+            function trimpDifferenceStatValue(run) {
+                const base = trimpDifferenceLabel(run.trimp_difference);
+                if (base === '—') return base;
+                const pct = blandAltmanPctDiff(run.total_trimp_garmin, run.total_trimp_fitbit);
+                if (pct === null || pct === undefined || isNaN(pct)) return base;
+                return `${base} · ${Math.abs(pct).toFixed(1)}%`;
+            }
+
+            const FLAG_LABELS = {
+                positive_garmin: 'Suspected Cadence Lock: GARMIN',
+                positive_fitbit: 'Suspected Cadence Lock: FITBIT',
+                positive_both: 'Suspected Cadence Lock: BOTH',
+                positive: 'Suspected Cadence Lock', // legacy runs not yet re-flagged to a device
+                negative: 'Accurate HR Data',
+            };
 
             function badgeFor(flag) {
                 const span = document.createElement('span');
-                let cls = 'badge-unreviewed';
-                let label = 'Unreviewed';
-                if (flag === 'positive') {
-                    cls = 'badge-positive';
-                    label = 'Confirmed: Cadence Lock';
-                } else if (flag === 'negative') {
-                    cls = 'badge-negative';
-                    label = 'Confirmed: Accurate HR Data';
-                }
+                const cls = flag && flag.startsWith('positive') ? 'badge-positive'
+                    : flag === 'negative' ? 'badge-negative'
+                    : 'badge-unreviewed';
+                const label = FLAG_LABELS[flag] || 'Unreviewed';
                 span.className = `badge ${cls}`;
                 span.appendChild(document.createTextNode(label));
                 return span;
@@ -255,17 +389,308 @@
 
                 const stats = document.createElement('div');
                 stats.className = 'runStats';
-                stats.appendChild(buildStat('Avg Garmin HR', formatNumber(run.avg_garmin_hr, ' bpm')));
-                stats.appendChild(buildStat('Avg Fitbit HR', formatNumber(run.avg_fitbit_hr, ' bpm')));
-                stats.appendChild(buildStat('Avg Cadence', formatNumber(run.avg_cadence_spm, ' spm')));
-                stats.appendChild(buildStat('AZM Overestimation', formatSignedPercent(run.azm_overestimation_pct)));
-                stats.appendChild(buildStat('Pace/HR Divergence', formatBucketDivergence(run.buckets_with_hr_divergence, run.total_pace_buckets)));
+                stats.appendChild(buildStat(`Garmin ${formatDeviceName(run.garmin_device_name)}`, formatTrimp(run.total_trimp_garmin)));
+                stats.appendChild(buildStat(`Fitbit ${formatDeviceName(run.fitbit_device_name)}`, formatTrimp(run.total_trimp_fitbit)));
+                stats.appendChild(buildStat('TRIMP Difference', trimpDifferenceStatValue(run)));
 
                 card.appendChild(meta);
                 card.appendChild(stats);
                 card.appendChild(badgeFor(run.flag));
 
                 return card;
+            }
+
+            // --- Summary Dashboard (Objective #9) ---
+
+            function isoWeekKey(date) {
+                // Standard ISO-8601 week-numbering: Thursday of the same week
+                // decides the week's year, so New Year's Eve/Day runs land in
+                // the correct week rather than always Jan 1's calendar year.
+                const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+                const dayNum = d.getUTCDay() || 7;
+                d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+                const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+                const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+                return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+            }
+
+            function groupRunsByIsoWeek(manifest) {
+                const groups = new Map();
+                for (const run of manifest) {
+                    if (!run.start) continue;
+                    const key = isoWeekKey(new Date(run.start));
+                    if (!groups.has(key)) groups.set(key, []);
+                    groups.get(key).push(run);
+                }
+                return groups;
+            }
+
+            function isoWeekRange(weekKey) {
+                // weekKey like "2026-W29" -> {monday: Date, sunday: Date}, both UTC.
+                const [yearStr, weekStr] = weekKey.split('-W');
+                const year = parseInt(yearStr, 10);
+                const week = parseInt(weekStr, 10);
+                const jan4 = new Date(Date.UTC(year, 0, 4));
+                const jan4Day = jan4.getUTCDay() || 7;
+                const week1Monday = new Date(jan4);
+                week1Monday.setUTCDate(jan4.getUTCDate() - jan4Day + 1);
+                const monday = new Date(week1Monday);
+                monday.setUTCDate(week1Monday.getUTCDate() + (week - 1) * 7);
+                const sunday = new Date(monday);
+                sunday.setUTCDate(monday.getUTCDate() + 6);
+                return { monday, sunday };
+            }
+
+            function formatWeekHeading(weekKey) {
+                const { monday, sunday } = isoWeekRange(weekKey);
+                const fmt = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                const [year, weekPart] = weekKey.split('-W');
+                return `${year} · Week ${parseInt(weekPart, 10)} (${fmt(monday)} – ${fmt(sunday)})`;
+            }
+
+            function modeOf(values) {
+                if (!values.length) return null;
+                const counts = new Map();
+                let best = null, bestCount = 0;
+                for (const v of values) {
+                    const c = (counts.get(v) || 0) + 1;
+                    counts.set(v, c);
+                    if (c > bestCount) { bestCount = c; best = v; }
+                }
+                return { value: best, count: bestCount };
+            }
+
+            function bpmBucketLabel(bpm) {
+                const lower = Math.floor(bpm / 10) * 10;
+                return `${lower}-${lower + 10} bpm`;
+            }
+
+            // Walking vs. running split for pace lock buckets: a pace of 8:00
+            // min/km or slower counts as walking, faster than 8:00 counts as
+            // running. Bucket width (0.5 min/km) divides evenly into the 8:00
+            // threshold, so no bucket ever straddles it - classifying by the
+            // bucket's lower bound is exact, never approximate.
+            function paceBucketLocomotion(label) {
+                if (!label) return null;
+                const match = /^(\d+):(\d{2})-/.exec(label);
+                if (!match) return null;
+                const minutes = parseInt(match[1], 10) + parseInt(match[2], 10) / 60;
+                return minutes >= 8.0 ? 'walking' : 'running';
+            }
+
+            function formatPercent(v) {
+                return (v === null || v === undefined || isNaN(v)) ? '—' : `${v.toFixed(0)}%`;
+            }
+
+            function formatBpm(v) {
+                return (v === null || v === undefined || isNaN(v)) ? '—' : `${v.toFixed(1)} bpm`;
+            }
+
+            function formatTrimpPerWeek(v) {
+                return (v === null || v === undefined || isNaN(v)) ? '—' : v.toFixed(1);
+            }
+
+            function computeDashboardStats(manifest) {
+                const totalRuns = manifest.length;
+
+                const positiveRuns = manifest.filter(run => run.flag && run.flag.startsWith('positive'));
+                const positivePct = totalRuns ? (positiveRuns.length / totalRuns) * 100 : null;
+
+                // Per-device prevalence: positive_both counts toward both sides.
+                // Bare legacy "positive" (not yet re-flagged to a device) is
+                // deliberately excluded from both - it isn't attributable.
+                const garminSuspectedRuns = manifest.filter(run => run.flag === 'positive_garmin' || run.flag === 'positive_both');
+                const fitbitSuspectedRuns = manifest.filter(run => run.flag === 'positive_fitbit' || run.flag === 'positive_both');
+                const garminSuspectedPct = totalRuns ? (garminSuspectedRuns.length / totalRuns) * 100 : null;
+                const fitbitSuspectedPct = totalRuns ? (fitbitSuspectedRuns.length / totalRuns) * 100 : null;
+
+                // Tier 1: average |TRIMP difference| per distinct ISO week spanned
+                // by the dataset - a plain signed point gap (garmin - fitbit), not
+                // a percentage (no presumed reference device between the two).
+                const trimpDiffs = manifest
+                    .map(run => run.trimp_difference)
+                    .filter(v => v !== null && v !== undefined && !isNaN(v));
+                const weekKeys = new Set(
+                    manifest
+                        .map(run => run.start)
+                        .filter(Boolean)
+                        .map(start => isoWeekKey(new Date(start)))
+                );
+                const avgAbsTrimpDiffPerWeek = (trimpDiffs.length && weekKeys.size)
+                    ? trimpDiffs.reduce((sum, v) => sum + Math.abs(v), 0) / weekKeys.size
+                    : null;
+
+                // Per-device average total TRIMP per distinct ISO week spanned
+                // by the dataset - same "sum ÷ distinct week count" pattern as
+                // avgAbsTrimpDiffPerWeek above, reusing the same weekKeys.
+                const garminTrimps = manifest
+                    .map(run => run.total_trimp_garmin)
+                    .filter(v => v !== null && v !== undefined && !isNaN(v));
+                const avgGarminTrimpPerWeek = (garminTrimps.length && weekKeys.size)
+                    ? garminTrimps.reduce((sum, v) => sum + v, 0) / weekKeys.size
+                    : null;
+
+                const fitbitTrimps = manifest
+                    .map(run => run.total_trimp_fitbit)
+                    .filter(v => v !== null && v !== undefined && !isNaN(v));
+                const avgFitbitTrimpPerWeek = (fitbitTrimps.length && weekKeys.size)
+                    ? fitbitTrimps.reduce((sum, v) => sum + v, 0) / weekKeys.size
+                    : null;
+
+                // Bland-Altman-style average % TRIMP difference per week: parse
+                // each week separately, then take the mean of the weekly
+                // differences. For each ISO week, pool that week's Garmin and
+                // Fitbit TRIMP totals separately (sum across that week's runs),
+                // compute ONE Bland-Altman % from the two sums, then average
+                // those per-week percentages (equal weight per week) across all
+                // weeks with at least one valid pair. This avoids summing
+                // per-run percentages across an unrelated denominator (distinct
+                // week count) - see project history for why that was wrong.
+                // Sign is preserved through the average and only converted to
+                // |value| + device name at display time (same convention as
+                // trimpDifferenceLabel()), because it's needed to pick the brand.
+                const weekGroups = groupRunsByIsoWeek(manifest);
+                const perWeekPct = [];
+                for (const runsInWeek of weekGroups.values()) {
+                    const validRuns = runsInWeek.filter(run =>
+                        run.total_trimp_garmin !== null && run.total_trimp_garmin !== undefined && !isNaN(run.total_trimp_garmin) &&
+                        run.total_trimp_fitbit !== null && run.total_trimp_fitbit !== undefined && !isNaN(run.total_trimp_fitbit)
+                    );
+                    if (!validRuns.length) continue;
+                    const sumGarmin = validRuns.reduce((sum, run) => sum + run.total_trimp_garmin, 0);
+                    const sumFitbit = validRuns.reduce((sum, run) => sum + run.total_trimp_fitbit, 0);
+                    const pct = blandAltmanPctDiff(sumGarmin, sumFitbit);
+                    if (pct !== null && pct !== undefined && !isNaN(pct)) perWeekPct.push(pct);
+                }
+                const avgSignedTrimpPctDiffPerWeek = perWeekPct.length
+                    ? perWeekPct.reduce((sum, v) => sum + v, 0) / perWeekPct.length
+                    : null;
+
+                // Tier 2: aggregated only across manually-flagged-suspicious runs,
+                // split into walking vs. running by each run's own
+                // worst_pace_bucket (8:00 min/km threshold - see
+                // paceBucketLocomotion()). Runs with no worst_pace_bucket, or a
+                // bucket faster than any threshold-adjacent bucket, are simply
+                // excluded from both splits.
+                const walkingRuns = positiveRuns.filter(run => paceBucketLocomotion(run.worst_pace_bucket) === 'walking');
+                const runningRuns = positiveRuns.filter(run => paceBucketLocomotion(run.worst_pace_bucket) === 'running');
+
+                function tier2StatsFor(runs) {
+                    const paceBuckets = runs.map(run => run.worst_pace_bucket).filter(Boolean);
+                    const paceMode = modeOf(paceBuckets);
+
+                    const gaps = runs
+                        .map(run => run.worst_pace_bucket_gap_bpm)
+                        .filter(v => v !== null && v !== undefined && !isNaN(v));
+                    const avgHrErrorDuringLock = gaps.length
+                        ? gaps.reduce((sum, v) => sum + v, 0) / gaps.length
+                        : null;
+
+                    // "True" HR = the device NOT manually flagged as suspect for
+                    // that run (positive_both/negative/unreviewed excluded - no
+                    // presumed-accurate side to pick). Approximate proxy bounded
+                    // by manual review accuracy, not automated per-instant
+                    // detection.
+                    const trueHrBuckets = runs
+                        .filter(run => run.flag === 'positive_garmin' || run.flag === 'positive_fitbit')
+                        .map(run => run.worst_bucket_true_hr_bpm)
+                        .filter(v => v !== null && v !== undefined && !isNaN(v))
+                        .map(bpmBucketLabel);
+                    const trueHrMode = modeOf(trueHrBuckets);
+
+                    return {
+                        mostCommonPaceBucket: paceMode ? paceMode.value : null,
+                        avgHrErrorDuringLock,
+                        mostCommonTrueHrBucket: trueHrMode ? trueHrMode.value : null,
+                    };
+                }
+
+                const walkingStats = tier2StatsFor(walkingRuns);
+                const runningStats = tier2StatsFor(runningRuns);
+
+                return {
+                    totalRuns,
+                    positivePct,
+                    garminSuspectedPct,
+                    fitbitSuspectedPct,
+                    avgAbsTrimpDiffPerWeek,
+                    avgGarminTrimpPerWeek,
+                    avgFitbitTrimpPerWeek,
+                    avgSignedTrimpPctDiffPerWeek,
+                    mostCommonPaceBucketWalking: walkingStats.mostCommonPaceBucket,
+                    mostCommonPaceBucketRunning: runningStats.mostCommonPaceBucket,
+                    avgHrErrorDuringLockWalking: walkingStats.avgHrErrorDuringLock,
+                    avgHrErrorDuringLockRunning: runningStats.avgHrErrorDuringLock,
+                    mostCommonTrueHrBucketWalking: walkingStats.mostCommonTrueHrBucket,
+                    mostCommonTrueHrBucketRunning: runningStats.mostCommonTrueHrBucket,
+                };
+            }
+
+            function buildDashboardTile(label, value, sub) {
+                const wrap = document.createElement('div');
+                wrap.className = 'dashboardTile';
+
+                const labelEl = document.createElement('div');
+                labelEl.className = 'dashboardLabel';
+                labelEl.appendChild(document.createTextNode(label));
+
+                const valueEl = document.createElement('div');
+                valueEl.className = 'dashboardValue';
+                valueEl.appendChild(document.createTextNode(value));
+
+                wrap.appendChild(labelEl);
+                wrap.appendChild(valueEl);
+
+                if (sub) {
+                    const subEl = document.createElement('div');
+                    subEl.className = 'dashboardSub';
+                    subEl.appendChild(document.createTextNode(sub));
+                    wrap.appendChild(subEl);
+                }
+
+                return wrap;
+            }
+
+            function renderDashboard(manifest) {
+                const section = document.getElementById('dashboard');
+                const tiles = document.getElementById('dashboardTiles');
+                const walkingTiles = document.getElementById('locomotionTilesWalking');
+                const runningTiles = document.getElementById('locomotionTilesRunning');
+
+                if (!Array.isArray(manifest) || manifest.length === 0) {
+                    section.classList.remove('visible');
+                    return;
+                }
+
+                const stats = computeDashboardStats(manifest);
+                tiles.innerHTML = '';
+                walkingTiles.innerHTML = '';
+                runningTiles.innerHTML = '';
+
+                tiles.appendChild(buildDashboardTile('Total Runs', String(stats.totalRuns)));
+                tiles.appendChild(buildDashboardTile(
+                    'Prevalence of Cadence Lock',
+                    formatPercent(stats.positivePct),
+                    `Garmin suspected: ${formatPercent(stats.garminSuspectedPct)} · Fitbit suspected: ${formatPercent(stats.fitbitSuspectedPct)}`
+                ));
+                tiles.appendChild(buildDashboardTile('Avg Garmin TRIMP / Week', formatTrimpPerWeek(stats.avgGarminTrimpPerWeek)));
+                tiles.appendChild(buildDashboardTile('Avg Fitbit TRIMP / Week', formatTrimpPerWeek(stats.avgFitbitTrimpPerWeek)));
+                tiles.appendChild(buildDashboardTile('Avg |TRIMP Difference| / Week', formatTrimpPerWeek(stats.avgAbsTrimpDiffPerWeek)));
+                tiles.appendChild(buildDashboardTile(
+                    'Avg % TRIMP Difference / Week',
+                    trimpPctDifferenceLabel(stats.avgSignedTrimpPctDiffPerWeek),
+                    "Bland-Altman % (mean of each week's pooled totals)"
+                ));
+
+                walkingTiles.appendChild(buildDashboardTile('Most Common Pace During Lock', stats.mostCommonPaceBucketWalking || '—'));
+                walkingTiles.appendChild(buildDashboardTile('Avg HR Error During Lock', formatBpm(stats.avgHrErrorDuringLockWalking)));
+                walkingTiles.appendChild(buildDashboardTile('Most Common "True" HR During Lock', stats.mostCommonTrueHrBucketWalking || '—'));
+
+                runningTiles.appendChild(buildDashboardTile('Most Common Pace During Lock', stats.mostCommonPaceBucketRunning || '—'));
+                runningTiles.appendChild(buildDashboardTile('Avg HR Error During Lock', formatBpm(stats.avgHrErrorDuringLockRunning)));
+                runningTiles.appendChild(buildDashboardTile('Most Common "True" HR During Lock', stats.mostCommonTrueHrBucketRunning || '—'));
+
+                section.classList.add('visible');
             }
 
             function renderRuns(manifest) {
@@ -280,7 +705,18 @@
                     return;
                 }
 
+                let prevWeekKey = null;
                 manifest.forEach((run) => {
+                    if (run.start) {
+                        const weekKey = isoWeekKey(new Date(run.start));
+                        if (weekKey !== prevWeekKey) {
+                            const heading = document.createElement('h3');
+                            heading.className = 'weekHeading';
+                            heading.appendChild(document.createTextNode(formatWeekHeading(weekKey)));
+                            list.appendChild(heading);
+                            prevWeekKey = weekKey;
+                        }
+                    }
                     list.appendChild(buildRunCard(run));
                 });
             }
@@ -293,6 +729,7 @@
                     return response.json();
                 })
                 .then(manifest => {
+                    renderDashboard(manifest);
                     renderRuns(manifest);
                 })
                 .catch(error => {

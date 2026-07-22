@@ -171,7 +171,9 @@ def parse_garmin_metrics(details):
     
     df = pd.DataFrame(data)
     df.set_index('time', inplace=True)
-    return df.resample('1s').mean().interpolate(method='time')
+    # No .interpolate() here - an empty 1s bin is a real sensor gap, not a
+    # value to fabricate. Matches fetch_fitbit_hr_df's identical treatment.
+    return df.resample('1s').mean()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -615,17 +617,21 @@ def inspect_schema():
     return {"schema": schema_map}
 
 
-def fetch_fitbit_hr_df(client: httpx.Client, headers: dict, start_iso: str, end_iso: str) -> pd.DataFrame:
+def fetch_fitbit_hr_df(client: httpx.Client, headers: dict, start_iso: str, end_iso: str) -> tuple[pd.DataFrame, str | None]:
     """Fetches Fitbit heart-rate samples (via Google Health) for the given
     [start_iso, end_iso) window and returns a 1s-resampled DataFrame indexed
-    by time with a single 'fitbit_hr' column. Returns an empty DataFrame if
-    no Fitbit-sourced samples fall in the window.
+    by time with a single 'fitbit_hr' column, plus the Fitbit device's
+    display name (e.g. "Inspire 3"), read off the first FITBIT-platform
+    sample's dataSource.device.displayName - no extra API call, since these
+    samples are already being scanned. Returns an empty DataFrame / None
+    device name if no Fitbit-sourced samples fall in the window.
 
     Callers choose the window (e.g. "the latest Google Health RUNNING
     session", or any matched session in a bulk backfill) - this function only
     knows how to fetch and parse HR samples for a window it's given.
     """
     fitbit_df = pd.DataFrame()
+    device_name = None
 
     hr_res = client.get(
         "https://health.googleapis.com/v4/users/me/dataTypes/heart-rate/dataPoints",
@@ -645,6 +651,9 @@ def fetch_fitbit_hr_df(client: httpx.Client, headers: dict, start_iso: str, end_
         if not (platform == "FITBIT" or "fitbit" in app_pkg.lower()):
             continue
 
+        if device_name is None:
+            device_name = src.get("device", {}).get("displayName")
+
         t = dp.get("heartRate", {}).get("sampleTime", {}).get("physicalTime")
         bpm = dp.get("heartRate", {}).get("beatsPerMinute")
         if t and bpm is not None:
@@ -655,10 +664,10 @@ def fetch_fitbit_hr_df(client: httpx.Client, headers: dict, start_iso: str, end_
         fitbit_df['fitbit_hr'] = pd.to_numeric(fitbit_df['fitbit_hr'], errors='coerce')
         fitbit_df = fitbit_df.set_index('time').resample('1s').mean()
 
-    return fitbit_df
+    return fitbit_df, device_name
 
 
-def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_id) -> dict:
+def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_id, garmin_device_name: str | None = None, fitbit_device_name: str | None = None) -> dict:
     """Time-aligns Garmin and Fitbit telemetry (outer join, no filling - gaps
     are real signal) and returns the final JSON-serializable payload shape.
     """
@@ -708,7 +717,9 @@ def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_i
         "garmin_hr": merged_df['garmin_hr'].tolist(),
         "fitbit_hr": merged_df['fitbit_hr'].tolist(),
         "cadence_spm": merged_df['cadence_spm'].tolist(),
-        "speed_mps": merged_df['speed_mps'].tolist()
+        "speed_mps": merged_df['speed_mps'].tolist(),
+        "garmin_device_name": garmin_device_name,
+        "fitbit_device_name": fitbit_device_name,
     }
 
 
@@ -722,7 +733,9 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
     of replaying cache_garmin.json (the publish pipeline always does this).
     """
     fitbit_df = pd.DataFrame()
+    fitbit_device_name = None
     garmin_df = pd.DataFrame()
+    garmin_device_name = None
     activity_id = None
     headers = {"Authorization": f"Bearer {google_access_token}"}
 
@@ -738,7 +751,7 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
             start_t = latest.get("exercise", {}).get("interval", {}).get("startTime")
             end_t = latest.get("exercise", {}).get("interval", {}).get("endTime")
 
-            fitbit_df = fetch_fitbit_hr_df(client, headers, start_t, end_t)
+            fitbit_df, fitbit_device_name = fetch_fitbit_hr_df(client, headers, start_t, end_t)
 
         print(f"DEBUG: Fitbit rows: {len(fitbit_df)}")
 
@@ -748,12 +761,19 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
     if use_garmin_cache and os.path.exists(cache_file):
         with open(cache_file, "r") as f:
             details = json.load(f)
+        # No device-name resolution here - the cached details blob (local dev
+        # only, never used by the publish pipeline) has no accompanying
+        # activity summary/deviceId to resolve against.
     else:
         garmin_client = Garmin(os.getenv("GARMIN_EMAIL"), os.getenv("GARMIN_PASSWORD"))
         garmin_client.login()
         activities = garmin_client.get_activities(0, 1)
         if activities:
             details = garmin_client.get_activity_details(activities[0]['activityId'])
+            device_id = str(activities[0].get('deviceId'))
+            devices = garmin_client.get_devices()
+            device_map = {str(d.get('deviceId')): d.get('displayName') or d.get('productDisplayName') for d in devices}
+            garmin_device_name = device_map.get(device_id)
             if use_garmin_cache:
                 with open(cache_file, "w") as f:
                     json.dump(details, f)
@@ -778,7 +798,7 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
         print(f"DEBUG: Zero cadence values: {zero_cadence}")
 
     # --- SECTION 3: Merge ---
-    return merge_telemetry(garmin_df, fitbit_df, activity_id)
+    return merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name)
 
 
 @app.get("/fetch-all-data")

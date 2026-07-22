@@ -199,7 +199,17 @@ def already_published_ids() -> set:
     return {run["id"] for run in manifest if "id" in run}
 
 
-def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: dict, garmin_activity: dict, google_session: dict, cache_dir: str) -> dict:
+def build_garmin_device_map(garmin_client) -> dict:
+    """Maps str(deviceId) -> friendly display name (e.g. "Instinct 2X Solar"),
+    via the account's registered devices. Built once per script run - device
+    ids are compared as strings since different Garmin endpoints return the
+    same id as an int (activity summaries) or a string (get_activity).
+    """
+    devices = garmin_client.get_devices()
+    return {str(d.get('deviceId')): d.get('displayName') or d.get('productDisplayName') for d in devices}
+
+
+def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: dict, garmin_activity: dict, google_session: dict, cache_dir: str, garmin_device_map: dict) -> dict:
     """Fetches Garmin activity details (using a local cache to survive an
     interrupted/rate-limited run without re-fetching) and the matched Google
     session's Fitbit HR window, merges them, and publishes via the same
@@ -220,11 +230,12 @@ def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: 
     garmin_df = parse_garmin_metrics(details)
     garmin_df['garmin_hr'] = pd.to_numeric(garmin_df['garmin_hr'], errors='coerce')
     garmin_df['cadence_spm'] = pd.to_numeric(garmin_df['cadence_spm'], errors='coerce')
+    garmin_device_name = garmin_device_map.get(str(garmin_activity.get('deviceId')))
 
     interval = google_session.get("exercise", {}).get("interval", {})
     start_t = interval.get("startTime")
     end_t = interval.get("endTime")
-    fitbit_df = fetch_fitbit_hr_df(google_client, headers, start_t, end_t)
+    fitbit_df, fitbit_device_name = fetch_fitbit_hr_df(google_client, headers, start_t, end_t)
 
     if fitbit_df.empty:
         raise NoFitbitDataError(
@@ -233,7 +244,7 @@ def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: 
             f"Health Connect / Garmin-sourced duplicate, not a real Fitbit sync)."
         )
 
-    payload = merge_telemetry(garmin_df, fitbit_df, activity_id)
+    payload = merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name)
     return publish_run.write_run(payload, "unreviewed")
 
 
@@ -249,6 +260,7 @@ def main(argv=None):
 
     garmin_client = Garmin(os.getenv("GARMIN_EMAIL"), os.getenv("GARMIN_PASSWORD"))
     garmin_client.login()
+    garmin_device_map = build_garmin_device_map(garmin_client)
 
     refresh_token = publish_run._get_refresh_token()
     google_access_token = refresh_google_token(refresh_token)
@@ -295,7 +307,7 @@ def main(argv=None):
             attempt = 0
             while True:
                 try:
-                    entry = fetch_and_publish_pair(garmin_client, google_client, headers, activity, session, CACHE_DIR)
+                    entry = fetch_and_publish_pair(garmin_client, google_client, headers, activity, session, CACHE_DIR, garmin_device_map)
                     published.append(activity_id)
                     print(f"Published {activity_id} ({entry['start']} -> {entry['end']}), flag={entry['flag']}")
                     break

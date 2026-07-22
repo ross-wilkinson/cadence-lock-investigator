@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 venv/
 .sync_cache/
+PROJECT_DIRECTIVE.md
