@@ -7,7 +7,12 @@
     "avg_garmin_hr": 140.9,
     "avg_fitbit_hr": 146.4,
     "avg_cadence_spm": 153.5,
-    "flag": "unreviewed"
+    "flag": "positive",
+    "total_azm_garmin": 65.35,
+    "total_azm_fitbit": 31.35,
+    "azm_overestimation_pct": 108.5,
+    "total_pace_buckets": 13,
+    "buckets_with_hr_divergence": 4
   },
   {
     "id": 23672318504,
