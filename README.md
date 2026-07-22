@@ -67,6 +67,19 @@ looked suspect. Nor does it attempt to establish that one device is "more
 correct" in general; neither Garmin nor Fitbit is treated as a
 ground-truth reference anywhere in this analysis.
 
+**Beyond detection.** Pointing out that cadence lock is happening is the
+easier half of this problem; correcting for it is the harder and more
+useful one. The longer-term aim is a context-aware post-processing
+algorithm that estimates the likely true HR during periods of suspected
+cadence lock — using only signals a single device already has on its own
+(pace, cadence, altitude, gradient, and similar), deliberately blind to the
+other device's HR trace. That constraint isn't incidental: a correction
+that worked by peeking at the second sensor's HR would just be reproducing
+that device, not actually inferring true HR from first principles, and
+would be useless to anyone running with only one watch. This is a future
+direction, not yet attempted — today's pipeline only detects (per-run,
+manually), and doesn't yet correct anything.
+
 **Open questions.** Whether the effect is real and repeatable, which
 mechanical pathway — footstrike or arm swing — actually drives it if so,
 and whether it's specific to particular sensor designs or wrist placements.
