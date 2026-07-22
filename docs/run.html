@@ -94,6 +94,22 @@
                 border: 1px solid var(--border);
                 border-radius: 8px;
             }
+
+            #paceDistWrap {
+                display: none;
+                max-height: 40vh;
+                overflow: auto;
+                background: var(--surface-1);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+            }
+            #paceDistTitle {
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text-secondary);
+                margin: 0;
+                padding: 12px 12px 0;
+            }
             table { width: 100%; border-collapse: collapse; font-size: 13px; }
             thead th {
                 position: sticky; top: 0;
@@ -131,6 +147,18 @@
             <thead><tr><th>Time</th><th>Garmin HR</th><th>Fitbit HR</th><th>Garmin Cadence (SPM)</th></tr></thead>
             <tbody id="tableBody"></tbody>
         </table></div>
+
+        <div id="paceDistWrap">
+            <p id="paceDistTitle">HR distribution by pace bucket</p>
+            <table>
+                <thead><tr>
+                    <th>Pace</th>
+                    <th>Garmin Mean</th><th>Garmin Std</th><th>Garmin Outliers</th>
+                    <th>Fitbit Mean</th><th>Fitbit Std</th><th>Fitbit Outliers</th>
+                </tr></thead>
+                <tbody id="paceDistBody"></tbody>
+            </table>
+        </div>
 
         <script>
             const mql = window.matchMedia('(prefers-color-scheme: dark)');
@@ -221,6 +249,45 @@
                 document.getElementById('tableBody').innerHTML = rows;
             }
 
+            function paceBucketSortKey(label) {
+                const match = label.match(/^(\d+):(\d{2})-/);
+                return match ? (parseInt(match[1], 10) * 60 + parseInt(match[2], 10)) : Infinity;
+            }
+
+            function fmtStat(v) {
+                if (v === null || v === undefined) return '&mdash;';
+                return typeof v === 'number' ? v.toFixed(1) : v;
+            }
+
+            function buildPaceDistTable(data) {
+                const wrap = document.getElementById('paceDistWrap');
+                const dist = data.pace_hr_distribution;
+                if (!dist || !dist.garmin || !dist.fitbit) {
+                    wrap.style.display = 'none';
+                    return;
+                }
+
+                const labels = Array.from(new Set([...Object.keys(dist.garmin), ...Object.keys(dist.fitbit)]))
+                    .sort((a, b) => paceBucketSortKey(a) - paceBucketSortKey(b));
+
+                const rows = labels.map((label) => {
+                    const g = dist.garmin[label];
+                    const f = dist.fitbit[label];
+                    return `<tr>
+                        <td>${label}</td>
+                        <td>${g ? fmtStat(g.mean) : '&mdash;'}</td>
+                        <td>${g ? fmtStat(g.std) : '&mdash;'}</td>
+                        <td>${g ? fmtStat(g.outlier_count) : '&mdash;'}</td>
+                        <td>${f ? fmtStat(f.mean) : '&mdash;'}</td>
+                        <td>${f ? fmtStat(f.std) : '&mdash;'}</td>
+                        <td>${f ? fmtStat(f.outlier_count) : '&mdash;'}</td>
+                    </tr>`;
+                }).join('');
+
+                document.getElementById('paceDistBody').innerHTML = rows;
+                wrap.style.display = labels.length ? 'block' : 'none';
+            }
+
             document.getElementById('tableToggle').addEventListener('click', () => {
                 const wrap = document.getElementById('tableWrap');
                 const showing = wrap.style.display === 'block';
@@ -265,6 +332,7 @@
                         document.getElementById('loader').style.display = 'none';
                         latestData = data;
                         render();
+                        buildPaceDistTable(data);
 
                         const firstTimestamp = Array.isArray(data.time) ? data.time[0] : null;
                         const datePart = typeof firstTimestamp === 'string' ? firstTimestamp.slice(0, 10) : null;

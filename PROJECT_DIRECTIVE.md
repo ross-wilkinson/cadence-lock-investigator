@@ -34,4 +34,5 @@ This project is an automated biomechanical analysis pipeline designed to isolate
 5. User Interface: Allows users to select from their most recent runs and visualize the cadence lock effect, with cardio load implications highlighted.
 6. Github Hosting: Deploy the application on GitHub Pages or a similar platform for public access, ensuring that sensitive data is not exposed.
 7. Visual Modernization: Enhance the Plotly visualization to look more modern and user-friendly.
-8. VDOT Integration: Integrate Garmin pace data and Jack Daniels' VDOT calculations to provide an estimate of what a person's HR would be at the observed running pace. 
+8. VDOT Integration: Integrate Garmin pace data and Jack Daniels' VDOT calculations to provide an estimate of what a person's HR would be at the observed running pace.
+9. Summary Statistics: Create a Summary Dashboard that sits above the Activity Feed to display aggregate metrics like: Total Runs, % Positive/Total, Average Cardio Load overestimation per week, Most Common pace that cadence lock occurs at, most common true HR that cadence lock occurs at, average HR error due to cadence lock, etc.

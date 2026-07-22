@@ -743,7 +743,8 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
         "time": merged_df['time'].tolist(),
         "garmin_hr": merged_df['garmin_hr'].tolist(),
         "fitbit_hr": merged_df['fitbit_hr'].tolist(),
-        "cadence_spm": merged_df['cadence_spm'].tolist()
+        "cadence_spm": merged_df['cadence_spm'].tolist(),
+        "speed_mps": merged_df['speed_mps'].tolist()
     }
 
 

@@ -185,6 +185,18 @@
                 return `${v}${suffix}`;
             }
 
+            function formatSignedPercent(v) {
+                if (v === null || v === undefined || isNaN(v)) return '—';
+                const sign = v > 0 ? '+' : '';
+                return `${sign}${v}%`;
+            }
+
+            function formatBucketDivergence(divergent, total) {
+                if (divergent === null || divergent === undefined || isNaN(divergent)
+                    || total === null || total === undefined || isNaN(total)) return '—';
+                return `${divergent} / ${total} buckets diverged`;
+            }
+
             function badgeFor(flag) {
                 const span = document.createElement('span');
                 let cls = 'badge-unreviewed';
@@ -242,6 +254,8 @@
                 stats.appendChild(buildStat('Avg Garmin HR', formatNumber(run.avg_garmin_hr, ' bpm')));
                 stats.appendChild(buildStat('Avg Fitbit HR', formatNumber(run.avg_fitbit_hr, ' bpm')));
                 stats.appendChild(buildStat('Avg Cadence', formatNumber(run.avg_cadence_spm, ' spm')));
+                stats.appendChild(buildStat('AZM Overestimation', formatSignedPercent(run.azm_overestimation_pct)));
+                stats.appendChild(buildStat('Pace/HR Divergence', formatBucketDivergence(run.buckets_with_hr_divergence, run.total_pace_buckets)));
 
                 card.appendChild(meta);
                 card.appendChild(stats);
