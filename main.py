@@ -679,8 +679,14 @@ def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_i
         else:
             fitbit_df.index = fitbit_df.index.tz_convert(target_tz)
 
-    # 1. Outer join (no filling)
+    # 1. Outer join (no filling). A completely empty fitbit_df (zero rows,
+    # zero columns - no Fitbit data at all in this window) joins in without
+    # ever creating a 'fitbit_hr' column, so guarantee it exists (as nulls,
+    # not fabricated values - this is still "gaps are signal", just gapped
+    # for the entire run rather than part of it).
     merged_df = garmin_df.join(fitbit_df, how='outer')
+    if 'fitbit_hr' not in merged_df.columns:
+        merged_df['fitbit_hr'] = None
 
     # 2. Localize time
     if merged_df.index.tz is not None:

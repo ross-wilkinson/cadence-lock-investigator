@@ -20,6 +20,8 @@
                 --series-garmin:   #7b3294;
                 --series-fitbit:   #008837;
                 --series-cadence:  #404040;
+                --badge-positive:  #e41a1c;
+                --badge-negative:  #4daf4a;
             }
             @media (prefers-color-scheme: dark) {
                 :root {
@@ -35,6 +37,8 @@
                     --series-garmin:   #7b3294;
                     --series-fitbit:   #008837;
                     --series-cadence:  #f7f7f7;
+                    --badge-positive:  #e41a1c;
+                    --badge-negative:  #4daf4a;
                 }
             }
 
@@ -124,12 +128,12 @@
                 white-space: nowrap;
             }
             .badge-positive {
-                background: var(--series-garmin);
+                background: var(--badge-positive);
                 color: #fff;
             }
             .badge-negative {
-                background: transparent;
-                color: var(--text-secondary);
+                background: var(--badge-negative);
+                color: #fff;
                 border: 1px solid var(--text-muted);
             }
             .badge-unreviewed {
@@ -203,10 +207,10 @@
                 let label = 'Unreviewed';
                 if (flag === 'positive') {
                     cls = 'badge-positive';
-                    label = 'Positive';
+                    label = 'Confirmed: Cadence Lock';
                 } else if (flag === 'negative') {
                     cls = 'badge-negative';
-                    label = 'Negative';
+                    label = 'Confirmed: Accurate HR Data';
                 }
                 span.className = `badge ${cls}`;
                 span.appendChild(document.createTextNode(label));

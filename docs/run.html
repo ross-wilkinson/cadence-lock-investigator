@@ -18,9 +18,10 @@
                 --gridline:        #e1e0d9;
                 --baseline:        #c3c2b7;
                 --border:          rgba(11,11,11,0.10);
-                --series-garmin:   #7b3294;
-                --series-fitbit:   #008837;
+                --series-garmin:   #984ea3;
+                --series-fitbit:   #4daf4a;
                 --series-cadence:  #404040;
+                --series-pace:     #377eb8;
             }
             @media (prefers-color-scheme: dark) {
                 :root {
@@ -33,9 +34,10 @@
                     --gridline:        #2c2c2a;
                     --baseline:        #383835;
                     --border:          rgba(255,255,255,0.10);
-                    --series-garmin:   #7b3294;
-                    --series-fitbit:   #008837;
+                    --series-garmin:   #984ea3;
+                    --series-fitbit:   #4daf4a;
                     --series-cadence:  #f7f7f7;
+                    --series-pace:     #377eb8;
                 }
             }
 
@@ -79,9 +81,11 @@
             #loader { font-size: 14px; color: var(--text-secondary); text-align: center; margin-top: 50px; }
 
             #graph {
-                flex: 1 1 auto;
+                flex: 0 0 auto;
                 width: 100%;
+                height: 60vh;
                 min-height: 360px;
+                max-height: 640px;
                 background: var(--surface-1);
                 border: 1px solid var(--border);
                 border-radius: 8px;
@@ -136,7 +140,7 @@
         <header>
             <div>
                 <h1>Cadence Lock Investigation</h1>
-                <p id="subtitle">Garmin vs. Fitbit heart rate against stride cadence &mdash; gaps in sensor reporting are shown as breaks, never filled.</p>
+                <p id="subtitle">Garmin vs. Fitbit heart rate against stride cadence and pace.</p>
                 <a id="backLink" href="index.html">&larr; Back to all runs</a>
             </div>
             <button id="tableToggle" type="button">View as table</button>
@@ -176,7 +180,8 @@
                     border: cssVar('--border'),
                     garmin: cssVar('--series-garmin'),
                     fitbit: cssVar('--series-fitbit'),
-                    cadence: cssVar('--series-cadence')
+                    cadence: cssVar('--series-cadence'),
+                    pace: cssVar('--series-pace')
                 };
             }
 
@@ -201,6 +206,15 @@
                     },
                     yaxis: {
                         title: { text: 'BPM / SPM', font: { color: t.muted } },
+                        domain: [0.34, 1],
+                        gridcolor: t.grid,
+                        zerolinecolor: t.baseline,
+                        tickfont: { color: t.muted }
+                    },
+                    yaxis2: {
+                        title: { text: 'Pace (min/km)', font: { color: t.muted } },
+                        domain: [0, 0.22],
+                        autorange: 'reversed',
                         gridcolor: t.grid,
                         zerolinecolor: t.baseline,
                         tickfont: { color: t.muted }
@@ -208,6 +222,10 @@
                     hovermode: 'x unified',
                     hoverlabel: { bgcolor: t.surface, bordercolor: t.border, font: { color: t.primary } }
                 };
+            }
+
+            function paceMinPerKm(speedMps) {
+                return (speedMps || []).map(v => (v === null || v === undefined || v <= 0) ? null : (1000 / v) / 60);
             }
 
             function buildTraces(data, t) {
@@ -232,6 +250,14 @@
                         line: { color: t.cadence, width: 1 },
                         marker: { size: 3 },
                         connectgaps: false
+                    },
+                    {
+                        x: data.time, y: paceMinPerKm(data.speed_mps), name: 'Garmin Pace (min/km)',
+                        mode: 'lines+markers',
+                        line: { color: t.pace, width: 1},
+                        marker: { size: 3 },
+                        connectgaps: false,
+                        yaxis: 'y2',
                     }
                 ];
             }

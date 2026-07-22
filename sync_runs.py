@@ -38,6 +38,15 @@ CACHE_DIR = ".sync_cache"
 GOOGLE_EXERCISE_URL = "https://health.googleapis.com/v4/users/me/dataTypes/exercise/dataPoints"
 
 
+class NoFitbitDataError(Exception):
+    """Raised when a matched Google Health session has zero Fitbit-platform
+    heart-rate samples anywhere in its window - a real historical data gap
+    (Fitbit wasn't syncing/worn), not a fetch or matching failure. Callers
+    treat this as a skip, not a publish failure.
+    """
+    pass
+
+
 def match_activities(garmin_activities: list[dict], google_sessions: list[dict], tolerance_minutes: float = 15.0) -> tuple[list[tuple[dict, dict]], list[dict], list[dict]]:
     """Matches Garmin activities to Google Health RUNNING sessions by time
     correlation. Pure function, no I/O.
@@ -217,6 +226,13 @@ def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: 
     end_t = interval.get("endTime")
     fitbit_df = fetch_fitbit_hr_df(google_client, headers, start_t, end_t)
 
+    if fitbit_df.empty:
+        raise NoFitbitDataError(
+            f"No Fitbit-platform heart-rate data found for activity {activity_id} "
+            f"in window {start_t} -> {end_t} (matched session was likely a "
+            f"Health Connect / Garmin-sourced duplicate, not a real Fitbit sync)."
+        )
+
     payload = merge_telemetry(garmin_df, fitbit_df, activity_id)
     return publish_run.write_run(payload, "unreviewed")
 
@@ -273,6 +289,7 @@ def main(argv=None):
 
         published = []
         failed = []
+        skipped_no_fitbit = []
         for activity, session in to_publish:
             activity_id = activity["activityId"]
             attempt = 0
@@ -292,6 +309,10 @@ def main(argv=None):
                     print(f"Giving up on {activity_id} after {args.max_retries} retries: {e}")
                     failed.append((activity_id, f"{type(e).__name__}: {e}"))
                     break
+                except NoFitbitDataError as e:
+                    print(f"Skipping {activity_id}: {e}")
+                    skipped_no_fitbit.append(activity_id)
+                    break
                 except Exception as e:
                     print(f"Failed to publish {activity_id}: {type(e).__name__}: {e}")
                     failed.append((activity_id, f"{type(e).__name__}: {e}"))
@@ -301,6 +322,7 @@ def main(argv=None):
         print("--- SYNC COMPLETE ---")
         print(f"Published ({len(published)}): {published}")
         print(f"Failed ({len(failed)}): {failed}")
+        print(f"Skipped, no Fitbit data ({len(skipped_no_fitbit)}): {skipped_no_fitbit}")
         print(f"Skipped already-published ({len(skipped_already_published)}): {skipped_already_published}")
         print(f"Unmatched Garmin ({len(unmatched_garmin)}): {[a.get('activityId') for a in unmatched_garmin]}")
         print(f"Unmatched Google ({len(unmatched_google)})")
