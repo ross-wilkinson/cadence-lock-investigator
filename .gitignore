@@ -4,3 +4,4 @@ cache_garmin.json
 __pycache__/
 *.pyc
 venv/
+.sync_cache/

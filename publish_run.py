@@ -102,11 +102,11 @@ def _summarize(payload: dict, flag: str) -> dict:
     }
 
 
-def publish(flag: str) -> dict:
-    refresh_token = _get_refresh_token()
-    access_token = main.refresh_google_token(refresh_token)
-    payload = main.build_run_payload(access_token, use_garmin_cache=False)
-
+def write_run(payload: dict, flag: str) -> dict:
+    """Writes a run payload to docs/data/<id>.json and upserts its summary
+    into docs/data/index.json. Shared by the single-run publish() flow and
+    sync_runs.py's bulk backfill, so there's exactly one write path.
+    """
     activity_id = payload.get("activity_id")
     if not activity_id:
         raise RuntimeError("No Garmin activity_id in the fetched payload - nothing to publish.")
@@ -152,6 +152,13 @@ def publish(flag: str) -> dict:
         json.dump(manifest, f, indent=2)
 
     return entry
+
+
+def publish(flag: str) -> dict:
+    refresh_token = _get_refresh_token()
+    access_token = main.refresh_google_token(refresh_token)
+    payload = main.build_run_payload(access_token, use_garmin_cache=False)
+    return write_run(payload, flag)
 
 
 if __name__ == "__main__":
