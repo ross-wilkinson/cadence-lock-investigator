@@ -214,20 +214,23 @@
                 return [
                     {
                         x: data.time, y: data.garmin_hr, name: 'Garmin HR',
-                        mode: 'markers',
-                        line: { color: t.garmin, size: 1 },
+                        mode: 'lines+markers',
+                        line: { color: t.garmin, width: 1 },
+                        marker: { size: 1 },
                         connectgaps: false
                     },
                     {
                         x: data.time, y: data.fitbit_hr, name: 'Fitbit HR',
-                        mode: 'markers',
-                        line: { color: t.fitbit, size: 1 },
+                        mode: 'lines+markers',
+                        line: { color: t.fitbit, width: 1 },
+                        marker: { size: 1 },
                         connectgaps: false
                     },
                     {
                         x: data.time, y: data.cadence_spm, name: 'Garmin Cadence (SPM)',
-                        mode: 'markers',
-                        line: { color: t.cadence, size: 1 },
+                        mode: 'lines+markers',
+                        line: { color: t.cadence, width: 1 },
+                        marker: { size: 1 },
                         connectgaps: false
                     }
                 ];
