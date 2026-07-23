@@ -1,0 +1,54 @@
+name: Nightly sync
+
+on:
+  schedule:
+    # 07:00 UTC - well after typical overnight Fitbit-to-Google-Health sync,
+    # so a run from the previous evening has usually landed by the time this
+    # fires. GitHub auto-disables schedule triggers after 60 days with no
+    # repo activity - if the data goes stale, check whether this got
+    # disabled before assuming the pipeline is broken.
+    - cron: "0 7 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Compute sync window
+        id: window
+        run: |
+          echo "start=$(date -u -d '14 days ago' +%F)" >> "$GITHUB_OUTPUT"
+          echo "end=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Sync runs
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+          HR_MAX: ${{ secrets.HR_MAX }}
+          BIRTH_YEAR: ${{ secrets.BIRTH_YEAR }}
+        run: >
+          python sync_runs.py
+          --start-date ${{ steps.window.outputs.start }}
+          --end-date ${{ steps.window.outputs.end }}
+
+      - name: Commit published data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          git diff --cached --quiet || git commit -m "Nightly sync ($(date -u +%F))"
+          git push

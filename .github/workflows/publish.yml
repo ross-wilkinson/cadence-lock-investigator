@@ -6,7 +6,7 @@ on:
       flag:
         description: "Cadence-lock verdict for this run"
         type: choice
-        options: [unreviewed, positive, negative]
+        options: [unreviewed, positive_garmin, positive_fitbit, positive_both, negative]
         default: unreviewed
 
 permissions:
