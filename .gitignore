@@ -6,3 +6,6 @@ __pycache__/
 venv/
 .sync_cache/
 PROJECT_DIRECTIVE.md
+CADENCE_LOCK_DETECTOR_PROPOSAL.md
+CADENCE_LOCK_LITERATURE_NOTES.md
+phase1_eda/

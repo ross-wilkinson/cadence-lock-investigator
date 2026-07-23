@@ -9,6 +9,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from garminconnect import Garmin
 import httpx
 
+import weather
+
 load_dotenv()
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
@@ -155,18 +157,34 @@ def parse_garmin_metrics(details):
     time_idx = idx_map.get("directTimestamp")
     hr_idx = idx_map.get("directHeartRate")
     speed_idx = idx_map.get("directSpeed")
+    elevation_idx = idx_map.get("directElevation")
+    distance_idx = idx_map.get("sumDistance")
+    latitude_idx = idx_map.get("directLatitude")
+    longitude_idx = idx_map.get("directLongitude")
+    grade_adjusted_speed_idx = idx_map.get("directGradeAdjustedSpeed")
 
     data = []
     for entry in metrics_list:
         m = entry.get("metrics", [])
-        
+
         # Guard clause: Ensure indices exist and data isn't null
         if time_idx is not None and m[time_idx] is not None:
             data.append({
                 "time": pd.to_datetime(m[time_idx], unit='ms'),
                 "garmin_hr": float(m[hr_idx]) if hr_idx is not None and m[hr_idx] is not None else None,
                 "cadence_spm": float(m[cadence_idx]) if cadence_idx is not None and m[cadence_idx] is not None else 0.0,
-                "speed_mps": float(m[speed_idx]) if speed_idx is not None and m[speed_idx] is not None else 0.0
+                "speed_mps": float(m[speed_idx]) if speed_idx is not None and m[speed_idx] is not None else 0.0,
+                # No factor scaling applied - despite metricDescriptors listing a
+                # 'factor' field (e.g. 100.0), activityDetailMetrics values arrive
+                # already in natural units (meters, m/s, decimal degrees), same as
+                # directSpeed/directHeartRate above. Verified against real Garmin
+                # data (activity 23672318504) on 2026-07-23. Missing values stay
+                # None (no 0.0 fallback) per the project's no-fill rule.
+                "elevation_m": float(m[elevation_idx]) if elevation_idx is not None and m[elevation_idx] is not None else None,
+                "distance_m": float(m[distance_idx]) if distance_idx is not None and m[distance_idx] is not None else None,
+                "latitude": float(m[latitude_idx]) if latitude_idx is not None and m[latitude_idx] is not None else None,
+                "longitude": float(m[longitude_idx]) if longitude_idx is not None and m[longitude_idx] is not None else None,
+                "grade_adjusted_speed_mps": float(m[grade_adjusted_speed_idx]) if grade_adjusted_speed_idx is not None and m[grade_adjusted_speed_idx] is not None else None,
             })
     
     df = pd.DataFrame(data)
@@ -718,9 +736,44 @@ def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_i
         "fitbit_hr": merged_df['fitbit_hr'].tolist(),
         "cadence_spm": merged_df['cadence_spm'].tolist(),
         "speed_mps": merged_df['speed_mps'].tolist(),
+        "elevation_m": merged_df['elevation_m'].tolist() if 'elevation_m' in merged_df.columns else [],
+        "distance_m": merged_df['distance_m'].tolist() if 'distance_m' in merged_df.columns else [],
+        "latitude": merged_df['latitude'].tolist() if 'latitude' in merged_df.columns else [],
+        "longitude": merged_df['longitude'].tolist() if 'longitude' in merged_df.columns else [],
+        "grade_adjusted_speed_mps": merged_df['grade_adjusted_speed_mps'].tolist() if 'grade_adjusted_speed_mps' in merged_df.columns else [],
         "garmin_device_name": garmin_device_name,
         "fitbit_device_name": fitbit_device_name,
     }
+
+
+def enrich_with_weather(payload: dict) -> dict:
+    """Adds top-level temperature_c/humidity_pct fields to a run payload via
+    one Open-Meteo lookup, using the run's start timestamp and the first
+    non-null (latitude, longitude) pair found in its telemetry. Does network
+    I/O (unlike merge_telemetry, which stays pure) - called separately by
+    the orchestration layer (build_run_payload here, and sync_runs.py's
+    fetch_and_publish_pair) after merge_telemetry returns. If no GPS fix is
+    present in the run at all, or the lookup fails, both fields are None.
+    """
+    latitudes = payload.get("latitude") or []
+    longitudes = payload.get("longitude") or []
+    times = payload.get("time") or []
+
+    lat = lon = None
+    for candidate_lat, candidate_lon in zip(latitudes, longitudes):
+        if candidate_lat is not None and candidate_lon is not None:
+            lat, lon = candidate_lat, candidate_lon
+            break
+
+    if lat is None or lon is None or not times:
+        payload["temperature_c"] = None
+        payload["humidity_pct"] = None
+        return payload
+
+    result = weather.fetch_weather(lat, lon, times[0])
+    payload["temperature_c"] = result["temperature_c"]
+    payload["humidity_pct"] = result["humidity_pct"]
+    return payload
 
 
 def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -> dict:
@@ -798,7 +851,10 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
         print(f"DEBUG: Zero cadence values: {zero_cadence}")
 
     # --- SECTION 3: Merge ---
-    return merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name)
+    payload = merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name)
+
+    # --- SECTION 4: Weather enrichment (network I/O, kept out of merge_telemetry) ---
+    return enrich_with_weather(payload)
 
 
 @app.get("/fetch-all-data")

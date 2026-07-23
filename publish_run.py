@@ -138,6 +138,8 @@ def _summarize(payload: dict, flag: str) -> dict:
         "fitbit_device_name": payload.get("fitbit_device_name"),
         "garmin_sample_rate_hz": round(garmin_rate, 3) if garmin_rate else None,
         "fitbit_sample_rate_hz": round(fitbit_rate, 3) if fitbit_rate else None,
+        "temperature_c": payload.get("temperature_c"),
+        "humidity_pct": payload.get("humidity_pct"),
         **trimp_stats,
     }
 

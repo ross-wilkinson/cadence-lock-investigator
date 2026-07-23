@@ -31,7 +31,7 @@ import publish_run
 # permanently shadowed the moment `def main(...)` is defined below (both
 # bind the same global name), silently breaking every main.xxx call in this
 # file, not just the CLI.
-from main import fetch_fitbit_hr_df, merge_telemetry, parse_garmin_metrics, refresh_google_token
+from main import enrich_with_weather, fetch_fitbit_hr_df, merge_telemetry, parse_garmin_metrics, refresh_google_token
 
 
 CACHE_DIR = ".sync_cache"
@@ -245,6 +245,7 @@ def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: 
         )
 
     payload = merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name)
+    payload = enrich_with_weather(payload)
     return publish_run.write_run(payload, "unreviewed")
 
 

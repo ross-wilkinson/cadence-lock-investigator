@@ -610,6 +610,7 @@
 
                 return {
                     totalRuns,
+                    positiveCount: positiveRuns.length,
                     positivePct,
                     garminSuspectedPct,
                     fitbitSuspectedPct,
@@ -670,7 +671,7 @@
                 tiles.appendChild(buildDashboardTile('Total Runs', String(stats.totalRuns)));
                 tiles.appendChild(buildDashboardTile(
                     'Prevalence of Cadence Lock',
-                    formatPercent(stats.positivePct),
+                    `${formatPercent(stats.positivePct)} (${stats.positiveCount}/${stats.totalRuns})`,
                     `Garmin suspected: ${formatPercent(stats.garminSuspectedPct)} · Fitbit suspected: ${formatPercent(stats.fitbitSuspectedPct)}`
                 ));
                 tiles.appendChild(buildDashboardTile('Avg Garmin TRIMP / Week', formatTrimpPerWeek(stats.avgGarminTrimpPerWeek)));
