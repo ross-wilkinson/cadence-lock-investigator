@@ -134,7 +134,7 @@
         <div id="loader">Fetching and aligning telemetry&hellip;</div>
         <div id="graph"></div>
         <div id="tableWrap"><table>
-            <thead><tr><th>Time</th><th>Garmin HR</th><th>Fitbit HR</th><th>Garmin Cadence (SPM)</th></tr></thead>
+            <thead><tr><th>Time</th><th id="thPrimaryHr">Garmin HR</th><th id="thFitbitHr">Fitbit HR</th><th id="thCadence">Garmin Cadence (SPM)</th></tr></thead>
             <tbody id="tableBody"></tbody>
         </table></div>
 
@@ -201,30 +201,38 @@
             }
 
             function buildTraces(data, t) {
+                // garmin_hr/cadence_spm/speed_mps are the "primary device" slots -
+                // populated by whichever device supplied both HR and cadence/pace
+                // for this run (normally Garmin, but a manually-published
+                // Polar-FIT run reuses the same slots - see publish_polar_run.py).
+                // The device name is always real data, so trust it for labels
+                // rather than hardcoding "Garmin".
+                const primaryName = data.garmin_device_name || 'Garmin';
+                const fitbitName = data.fitbit_device_name || 'Fitbit';
                 return [
                     {
-                        x: data.time, y: data.garmin_hr, name: 'Garmin HR',
+                        x: data.time, y: data.garmin_hr, name: `${primaryName} HR`,
                         mode: 'lines+markers',
                         line: { color: t.garmin, width: 1 },
                         marker: { size: 3 },
                         connectgaps: false
                     },
                     {
-                        x: data.time, y: data.fitbit_hr, name: 'Fitbit HR',
+                        x: data.time, y: data.fitbit_hr, name: `${fitbitName} HR`,
                         mode: 'lines+markers',
                         line: { color: t.fitbit, width: 1 },
                         marker: { size: 3 },
                         connectgaps: false
                     },
                     {
-                        x: data.time, y: data.cadence_spm, name: 'Garmin Cadence (SPM)',
+                        x: data.time, y: data.cadence_spm, name: `${primaryName} Cadence (SPM)`,
                         mode: 'lines+markers',
                         line: { color: t.cadence, width: 1 },
                         marker: { size: 3 },
                         connectgaps: false
                     },
                     {
-                        x: data.time, y: paceMinPerKm(data.speed_mps), name: 'Garmin Pace (min/km)',
+                        x: data.time, y: paceMinPerKm(data.speed_mps), name: `${primaryName} Pace (min/km)`,
                         mode: 'lines+markers',
                         line: { color: t.pace, width: 1},
                         marker: { size: 3 },
@@ -295,6 +303,13 @@
                         document.getElementById('loader').style.display = 'none';
                         latestData = data;
                         render();
+
+                        const primaryName = data.garmin_device_name || 'Garmin';
+                        const fitbitName = data.fitbit_device_name || 'Fitbit';
+                        document.getElementById('thPrimaryHr').textContent = `${primaryName} HR`;
+                        document.getElementById('thFitbitHr').textContent = `${fitbitName} HR`;
+                        document.getElementById('thCadence').textContent = `${primaryName} Cadence (SPM)`;
+                        document.getElementById('subtitle').textContent = `${primaryName} vs. ${fitbitName} heart rate against stride cadence and pace.`;
 
                         const firstTimestamp = Array.isArray(data.time) ? data.time[0] : null;
                         const datePart = typeof firstTimestamp === 'string' ? firstTimestamp.slice(0, 10) : null;

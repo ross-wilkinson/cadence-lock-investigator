@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 venv/
 .sync_cache/
+raw_data/
 PROJECT_DIRECTIVE.md
 CADENCE_LOCK_DETECTOR_PROPOSAL.md
 CADENCE_LOCK_LITERATURE_NOTES.md

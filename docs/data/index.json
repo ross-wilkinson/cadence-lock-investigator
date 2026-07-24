@@ -1,5 +1,29 @@
 [
   {
+    "id": -1784858581,
+    "start": "2026-07-23 19:03:01-07:00",
+    "end": "2026-07-23 19:33:45-07:00",
+    "duration_seconds": 1845,
+    "avg_garmin_hr": 96.6,
+    "avg_fitbit_hr": 148.8,
+    "avg_cadence_spm": 131.6,
+    "flag": "positive_fitbit",
+    "garmin_device_name": "Polar Vantage V3",
+    "fitbit_device_name": "Inspire 3",
+    "garmin_sample_rate_hz": 1.0,
+    "fitbit_sample_rate_hz": 0.5,
+    "temperature_c": null,
+    "humidity_pct": null,
+    "total_trimp_garmin": 13.35,
+    "total_trimp_fitbit": 93.36,
+    "trimp_difference": -80.0,
+    "total_pace_buckets": 31,
+    "buckets_with_hr_divergence": 28,
+    "worst_pace_bucket": "58:30-59:00/km",
+    "worst_pace_bucket_gap_bpm": 89.0,
+    "worst_bucket_true_hr_bpm": 75.0
+  },
+  {
     "id": 23697193172,
     "start": "2026-07-22 16:10:59-07:00",
     "end": "2026-07-22 16:51:04-07:00",
@@ -16,7 +40,10 @@
     "total_trimp_fitbit": 109.05,
     "trimp_difference": -40.6,
     "total_pace_buckets": 23,
-    "buckets_with_hr_divergence": 17
+    "buckets_with_hr_divergence": 17,
+    "worst_pace_bucket": "10:00-10:30/km",
+    "worst_pace_bucket_gap_bpm": 97.7,
+    "worst_bucket_true_hr_bpm": null
   },
   {
     "id": 23684422366,
@@ -82,7 +109,7 @@
     "trimp_difference": -45.6,
     "worst_pace_bucket": "29:00-29:30/km",
     "worst_pace_bucket_gap_bpm": 72.0,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 81.0
   },
   {
     "id": 23634763296,
@@ -126,7 +153,7 @@
     "trimp_difference": -18.3,
     "worst_pace_bucket": "11:00-11:30/km",
     "worst_pace_bucket_gap_bpm": 47.9,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 114.8
   },
   {
     "id": 23573769885,
@@ -148,7 +175,7 @@
     "trimp_difference": -59.9,
     "worst_pace_bucket": "27:30-28:00/km",
     "worst_pace_bucket_gap_bpm": 53.0,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 94.0
   },
   {
     "id": 23562706570,
@@ -170,7 +197,7 @@
     "trimp_difference": -3.2,
     "worst_pace_bucket": "9:00-9:30/km",
     "worst_pace_bucket_gap_bpm": 25.4,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 116.4
   },
   {
     "id": 23513208518,
@@ -192,7 +219,7 @@
     "trimp_difference": 3.1,
     "worst_pace_bucket": "16:00-16:30/km",
     "worst_pace_bucket_gap_bpm": 17.0,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 62.0
   },
   {
     "id": 23492056327,
@@ -214,7 +241,7 @@
     "trimp_difference": 5.6,
     "worst_pace_bucket": "7:00-7:30/km",
     "worst_pace_bucket_gap_bpm": 39.5,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 102.5
   },
   {
     "id": 23479915333,
@@ -236,7 +263,7 @@
     "trimp_difference": -16.3,
     "worst_pace_bucket": "5:30-6:00/km",
     "worst_pace_bucket_gap_bpm": 37.5,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 124.5
   },
   {
     "id": 23444663302,
@@ -258,7 +285,7 @@
     "trimp_difference": -32.4,
     "worst_pace_bucket": "20:30-21:00/km",
     "worst_pace_bucket_gap_bpm": 41.8,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 114.2
   },
   {
     "id": 23331599739,
@@ -302,7 +329,7 @@
     "trimp_difference": -10.9,
     "worst_pace_bucket": "8:30-9:00/km",
     "worst_pace_bucket_gap_bpm": 26.2,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 144.3
   },
   {
     "id": 23298691779,
@@ -324,7 +351,7 @@
     "trimp_difference": -38.2,
     "worst_pace_bucket": "9:30-10:00/km",
     "worst_pace_bucket_gap_bpm": 38.4,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 107.6
   },
   {
     "id": 23275481805,
@@ -346,7 +373,7 @@
     "trimp_difference": -33.6,
     "worst_pace_bucket": "6:00-6:30/km",
     "worst_pace_bucket_gap_bpm": 37.1,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 126.2
   },
   {
     "id": 23262511515,
@@ -368,7 +395,7 @@
     "trimp_difference": 9.0,
     "worst_pace_bucket": "8:30-9:00/km",
     "worst_pace_bucket_gap_bpm": 22.8,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 120.7
   },
   {
     "id": 23226403791,
@@ -478,7 +505,7 @@
     "trimp_difference": -3.7,
     "worst_pace_bucket": "13:00-13:30/km",
     "worst_pace_bucket_gap_bpm": 35.4,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": 111.9
   },
   {
     "id": 23143863566,

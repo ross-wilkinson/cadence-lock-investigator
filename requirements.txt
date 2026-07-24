@@ -5,3 +5,4 @@ numpy==2.5.1
 httpx==0.28.1
 python-dotenv==1.2.2
 garminconnect==0.3.6
+fitparse==1.2.0

@@ -15,7 +15,20 @@ load_dotenv()
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+
+POLAR_CLIENT_ID = os.getenv("POLAR_CLIENT_ID")
+POLAR_CLIENT_SECRET = os.getenv("POLAR_CLIENT_SECRET")
+POLAR_REDIRECT_URI = os.getenv("POLAR_REDIRECT_URI")
+
+# Verified 2026-07-23 against Polar's own OpenAPI spec
+# (https://www.polar.com/accesslink-api/swagger.yaml) and the reference
+# client at github.com/polarofficial/accesslink-example-python - do not
+# trust these from memory, Polar has changed hosts/paths before.
+POLAR_AUTHORIZATION_URL = "https://flow.polar.com/oauth2/authorization"
+POLAR_TOKEN_URL = "https://polarremote.com/v2/oauth2/token"
+POLAR_ACCESSLINK_URL = "https://www.polaraccesslink.com/v3"
+POLAR_SCOPE = "accesslink.read_all"
 
 app = FastAPI()
 
@@ -31,6 +44,14 @@ def init_db():
     """)
     try:
         cursor.execute("ALTER TABLE auth_tokens ADD COLUMN refresh_token TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+    try:
+        # Polar's token response identifies the user via a Polar-assigned
+        # "x_user_id" (not present at all for Google/Fitbit) - later
+        # AccessLink calls need it in the URL path, so it's persisted
+        # alongside the token rather than re-derived each time.
+        cursor.execute("ALTER TABLE auth_tokens ADD COLUMN external_user_id TEXT")
     except sqlite3.OperationalError:
         pass  # column already exists
     conn.commit()
@@ -202,6 +223,7 @@ def home():
             <h2>Cadence Lock Investigator</h2>
             <p><strong>Phase 2: Data Ingestion</strong></p>
             <p><a href="/login/google" style="padding: 10px 15px; background: #4285F4; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">1. Re-Connect Google Health</a></p>
+            <p><a href="/login/polar" style="padding: 10px 15px; background: #E4022F; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">2. Connect Polar</a></p>
             <hr style="margin: 20px 0;">
             <p><strong>Phase 3: Diagnostic Engine</strong></p>
             <p><a href="/visualize" style="padding: 10px 15px; background: #9b59b6; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">Visualize Latest Run</a></p>
@@ -219,7 +241,7 @@ def login_google():
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={GOOGLE_CLIENT_ID}&"
-        f"redirect_uri={REDIRECT_URI}&"
+        f"redirect_uri={GOOGLE_REDIRECT_URI}&"
         f"response_type=code&"
         f"scope={' '.join(scopes)}&"
         f"access_type=offline&"
@@ -235,7 +257,7 @@ async def google_callback(code: str = None, error: str = None):
     token_url = "https://oauth2.googleapis.com/token"
     payload = {
         "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
-        "code": code, "grant_type": "authorization_code", "redirect_uri": REDIRECT_URI,
+        "code": code, "grant_type": "authorization_code", "redirect_uri": GOOGLE_REDIRECT_URI,
     }
     async with httpx.AsyncClient() as client:
         response = await client.post(token_url, data=payload)
@@ -259,6 +281,81 @@ async def google_callback(code: str = None, error: str = None):
     conn.commit()
     conn.close()
     return "<html><body style='font-family: sans-serif; max-width: 500px; margin: 50px auto;'><h2 style='color: green;'>✓ Connected to Google Health API!</h2><p><a href='/'>← Return Home</a></p></body></html>"
+
+
+@app.get("/login/polar")
+def login_polar():
+    auth_url = (
+        f"{POLAR_AUTHORIZATION_URL}?"
+        f"response_type=code&"
+        f"client_id={POLAR_CLIENT_ID}&"
+        f"redirect_uri={POLAR_REDIRECT_URI}&"
+        f"scope={POLAR_SCOPE}"
+    )
+    return RedirectResponse(auth_url)
+
+
+@app.get("/auth/polar/callback", response_class=HTMLResponse)
+async def polar_callback(code: str = None, error: str = None):
+    if error or not code:
+        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+
+    # Polar authenticates the CLIENT via HTTP Basic (base64 client_id:client_secret)
+    # on the token exchange, not client_id/secret fields in the POST body like
+    # Google - confirmed against polarofficial/accesslink-example-python's
+    # oauth2.py reference client.
+    token_payload = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": POLAR_REDIRECT_URI,
+    }
+    async with httpx.AsyncClient() as client:
+        token_res = await client.post(
+            POLAR_TOKEN_URL,
+            data=token_payload,
+            headers={"Accept": "application/json;charset=UTF-8"},
+            auth=(POLAR_CLIENT_ID, POLAR_CLIENT_SECRET),
+        )
+        tokens = token_res.json()
+    if token_res.status_code != 200 or "access_token" not in tokens:
+        raise HTTPException(status_code=400, detail=f"Token exchange failed: {tokens}")
+
+    access_token = tokens["access_token"]
+    # Polar's assigned user id arrives as "x_user_id" in the token response
+    # (confirmed against example_web_app.py's callback route) - every later
+    # AccessLink call needs it in the URL path. Polar's own docs describe
+    # "API user-id" and "Polar User Id (polar-user-id)" as interchangeable
+    # terms for this same value.
+    external_user_id = tokens.get("x_user_id")
+    # Not currently issued by Polar's token endpoint (no rotation/expiry
+    # scheme requiring one, unlike Google) - stored if that ever changes.
+    refresh_token = tokens.get("refresh_token")
+
+    # Mandatory one-time registration: required once per user per client
+    # before any other AccessLink call will succeed. A 409 means this user
+    # is already registered to this client (expected on every re-login
+    # after the first) and is treated as success, not an error.
+    async with httpx.AsyncClient() as client:
+        register_res = await client.post(
+            f"{POLAR_ACCESSLINK_URL}/users",
+            json={"member-id": "cadence-lock-investigator"},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if register_res.status_code not in (200, 201, 409):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Polar user registration failed ({register_res.status_code}): {register_res.text}",
+        )
+
+    conn = sqlite3.connect("investigator.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR REPLACE INTO auth_tokens (provider, access_token, refresh_token, external_user_id) VALUES ('polar', ?, ?, ?)",
+        (access_token, refresh_token, external_user_id),
+    )
+    conn.commit()
+    conn.close()
+    return "<html><body style='font-family: sans-serif; max-width: 500px; margin: 50px auto;'><h2 style='color: green;'>✓ Connected to Polar AccessLink!</h2><p><a href='/'>← Return Home</a></p></body></html>"
 
 
 @app.get("/fetch-latest-run")
@@ -633,6 +730,193 @@ def inspect_schema():
     ]
     
     return {"schema": schema_map}
+
+
+def list_polar_exercises(access_token: str, samples: bool = True) -> list[dict]:
+    """Lists the logged-in Polar user's exercises via AccessLink's current
+    non-transactional `GET /v3/exercises` endpoint.
+
+    NOTE for whoever wires this into sync_runs.py next: the exercise-
+    transaction create/list/commit flow (POST .../exercise-transactions,
+    GET .../exercise-transactions/{id}, PUT to commit) that older Polar
+    integration guides describe is now labelled "Exercises (deprecated)"
+    in Polar's own OpenAPI spec, in favor of this simpler transaction-free
+    resource - confirmed 2026-07-23 against
+    https://www.polar.com/accesslink-api/swagger.yaml. There is no polling
+    cursor/transaction id to track here; Polar just returns whatever of
+    the user's exercises are still visible (only samples uploaded to Flow
+    in the last 30 days, and only after this user was registered to this
+    client, are ever returned - there's no date-range query param). A
+    stateless re-list + skip-already-published (the same pattern
+    sync_runs.already_published_ids() already uses for Garmin/Google) is
+    the natural fit, not a stored transaction cursor.
+
+    Pass samples=True (default) so Polar embeds each exercise's raw sample
+    arrays (heart rate, speed, cadence, ...) inline, avoiding a second
+    per-exercise request for the common case of wanting HR data too.
+    Returns [] on a 204 (no data available).
+    """
+    headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+    params = {"samples": str(samples).lower()}
+    with httpx.Client(timeout=20.0) as client:
+        response = client.get(f"{POLAR_ACCESSLINK_URL}/exercises", headers=headers, params=params)
+    if response.status_code == 204:
+        return []
+    if response.status_code != 200:
+        raise RuntimeError(f"Polar exercises API returned {response.status_code}: {response.text}")
+    return response.json()
+
+
+def fetch_polar_exercise_samples(access_token: str, exercise_id: str) -> tuple[pd.DataFrame, str | None]:
+    """Fetches one Polar exercise (by the hashed `id` string returned in
+    list_polar_exercises' entries) with samples embedded, and returns its
+    heart-rate stream as a 1s-resampled DataFrame indexed by time with a
+    single 'polar_hr' column - deliberately the same shape
+    fetch_fitbit_hr_df returns, so a future third source slots into
+    main.merge_telemetry / sync_runs.py's match/merge logic the same way
+    Fitbit did (not built in this pass - see list_polar_exercises'
+    docstring for the natural next step). Also returns the device name
+    (e.g. "Polar Vantage V3", straight off the exercise's `device` field)
+    for the same kind of summary field garmin_device_name/
+    fitbit_device_name already are.
+
+    Unlike Fitbit's individually-timestamped HR points, a Polar sample is
+    a fixed-recording-rate series (recording-rate in seconds, typically
+    1-5s) - each sample's timestamp is derived from the exercise's
+    start_time plus (index * recording_rate). A null entry in the
+    comma-separated data string means the sensor was offline for that
+    tick - dropped, not filled, per this project's no-fill rule.
+
+    The HR stream is picked out of the exercise's `samples` array by
+    matching sample-type == "HEARTRATE". Polar's own OpenAPI spec only
+    shows a placeholder numeric example ('1') for this field rather than
+    documenting the real string enum - "HEARTRATE" is confirmed instead
+    against a third-party reference client
+    (github.com/StuMason/polar-flow) that names it explicitly. Flagged
+    here in case a real API response ever disagrees.
+    """
+    headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+    with httpx.Client(timeout=20.0) as client:
+        response = client.get(
+            f"{POLAR_ACCESSLINK_URL}/exercises/{exercise_id}",
+            headers=headers,
+            params={"samples": "true"},
+        )
+    if response.status_code != 200:
+        raise RuntimeError(f"Polar exercise API returned {response.status_code}: {response.text}")
+
+    exercise = response.json()
+    device_name = exercise.get("device")
+    start_time = exercise.get("start_time")
+
+    hr_sample = next(
+        (s for s in exercise.get("samples", []) if str(s.get("sample-type", "")).upper() == "HEARTRATE"),
+        None,
+    )
+    if hr_sample is None or not start_time:
+        return pd.DataFrame(), device_name
+
+    recording_rate = hr_sample.get("recording-rate") or 1
+    raw_values = str(hr_sample.get("data", "")).split(",")
+
+    base_time = pd.to_datetime(start_time)
+    rows = []
+    for i, raw_value in enumerate(raw_values):
+        raw_value = raw_value.strip()
+        if raw_value == "" or raw_value.lower() == "null":
+            continue  # sensor offline for this tick - a real gap, never fabricated
+        rows.append({
+            "time": base_time + pd.Timedelta(seconds=i * recording_rate),
+            "polar_hr": float(raw_value),
+        })
+
+    polar_df = pd.DataFrame(rows)
+    if not polar_df.empty:
+        polar_df = polar_df.set_index("time").resample("1s").mean()
+
+    return polar_df, device_name
+
+
+def parse_polar_fit_file(file_path: str) -> tuple[pd.DataFrame, str | None]:
+    """Parses a Polar Flow FIT export (e.g. from a manual "Export training
+    session" download) into a DataFrame indexed by time with 'polar_hr' and
+    'polar_cadence_spm' columns (Polar-prefixed, since HR/cadence are the
+    ones this pipeline also gets from Garmin - see merge_telemetry), plus
+    unprefixed 'speed_mps'/'distance_m'/'elevation_m' columns matching
+    parse_garmin_metrics' own naming for those fields, and the device name.
+
+    GPS (position_lat/position_long) is deliberately NOT extracted: FIT
+    encodes them as semicircle integers requiring a scale conversion this
+    project hasn't verified against a known-good reference, and getting it
+    wrong would silently corrupt weather-lookup geocoding (main.
+    enrich_with_weather) rather than fail loudly. speed/distance/altitude
+    have no such ambiguity - FIT's base units for these are already m/s and
+    meters, confirmed directly against this file's real values.
+
+    Used as the manual-file fallback for a run that predates AccessLink
+    registration - see list_polar_exercises' docstring: the API only ever
+    returns exercises uploaded to Flow *after* registration, so a run
+    recorded before that point must come in this way instead.
+
+    FIT is parsed directly (not the TCX export) because TCX is a converted
+    export whose internal resampling/rounding behavior Polar doesn't
+    document, whereas FIT is the watch's own recording format - no
+    intermediate lossy step, consistent with this project's no-smoothing/
+    no-fill rule.
+
+    Unit note verified against this project's actual FIT+TCX pair (not
+    assumed): Polar's 'cadence' field is strides/min (one full gait cycle,
+    both feet), confirmed by total_strides / total_timer_time in the FIT's
+    session message matching the per-record cadence average exactly, and
+    cross-checked against the TCX export's <Cadence> values (identical raw
+    numbers). Garmin's pipeline in this project uses 'directDoubleCadence'
+    (see parse_garmin_metrics) - already-doubled full steps/min. So Polar's
+    raw cadence is multiplied by 2 here to land on the same cadence_spm
+    convention Garmin data uses; skipping this would silently make Polar
+    look like it has half Garmin's cadence.
+
+    No RR-interval / beat-to-beat data is present in this file (confirmed:
+    no 'hrv' FIT message at all) - expected for a wrist PPG sensor with no
+    chest strap paired, and directly relevant to the original point of this
+    test (does the Vantage V3's own AFE give a clean HR signal on its own).
+    """
+    import fitparse
+
+    fitfile = fitparse.FitFile(file_path)
+
+    device_name = None
+    for msg in fitfile.get_messages("file_id"):
+        product_name = msg.get_value("product_name")
+        if product_name:
+            device_name = product_name
+            break
+
+    rows = []
+    for record in fitfile.get_messages("record"):
+        timestamp = record.get_value("timestamp")
+        if timestamp is None:
+            continue
+        cadence = record.get_value("cadence")
+        speed = record.get_value("enhanced_speed")
+        if speed is None:
+            speed = record.get_value("speed")
+        altitude = record.get_value("enhanced_altitude")
+        if altitude is None:
+            altitude = record.get_value("altitude")
+        rows.append({
+            "time": pd.Timestamp(timestamp, tz="UTC"),
+            "polar_hr": record.get_value("heart_rate"),
+            "polar_cadence_spm": cadence * 2 if cadence is not None else None,
+            "speed_mps": speed,
+            "distance_m": record.get_value("distance"),
+            "elevation_m": altitude,
+        })
+
+    polar_df = pd.DataFrame(rows)
+    if not polar_df.empty:
+        polar_df = polar_df.set_index("time").resample("1s").mean()
+
+    return polar_df, device_name
 
 
 def fetch_fitbit_hr_df(client: httpx.Client, headers: dict, start_iso: str, end_iso: str) -> tuple[pd.DataFrame, str | None]:

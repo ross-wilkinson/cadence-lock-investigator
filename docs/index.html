@@ -389,7 +389,12 @@
 
                 const stats = document.createElement('div');
                 stats.className = 'runStats';
-                stats.appendChild(buildStat(`Garmin ${formatDeviceName(run.garmin_device_name)}`, formatTrimp(run.total_trimp_garmin)));
+                // No hardcoded "Garmin" prefix: this slot is the "primary
+                // device" (HR+cadence+pace), normally Garmin but sometimes
+                // Polar for a manually-published FIT run (see
+                // publish_polar_run.py) - the device name string alone is
+                // always accurate, unlike a brand prefix would be.
+                stats.appendChild(buildStat(formatDeviceName(run.garmin_device_name), formatTrimp(run.total_trimp_garmin)));
                 stats.appendChild(buildStat(`Fitbit ${formatDeviceName(run.fitbit_device_name)}`, formatTrimp(run.total_trimp_fitbit)));
                 stats.appendChild(buildStat('TRIMP Difference', trimpDifferenceStatValue(run)));
 
@@ -504,6 +509,19 @@
                 const garminSuspectedPct = totalRuns ? (garminSuspectedRuns.length / totalRuns) * 100 : null;
                 const fitbitSuspectedPct = totalRuns ? (fitbitSuspectedRuns.length / totalRuns) * 100 : null;
 
+                // Symmetric with garmin/fitbitSuspected above: "suspected" means
+                // the flag accuses THAT device of showing the artifact. The flag
+                // vocabulary (publish_run.py's --flag choices) has no
+                // "positive_polar" value yet - a run.garmin_device_name of "Polar
+                // Vantage V3" with flag=positive_fitbit means Polar was the
+                // *corroborating* device, not the suspect, so it must NOT count
+                // here even though the device name contains "polar". This stays
+                // at 0% until a run is ever flagged with Polar itself as suspect
+                // (which would need a new flag value - not added yet, since no
+                // run has ever needed one).
+                const polarSuspectedRuns = manifest.filter(run => run.flag === 'positive_polar');
+                const polarSuspectedPct = totalRuns ? (polarSuspectedRuns.length / totalRuns) * 100 : null;
+
                 // Tier 1: average |TRIMP difference| per distinct ISO week spanned
                 // by the dataset - a plain signed point gap (garmin - fitbit), not
                 // a percentage (no presumed reference device between the two).
@@ -614,6 +632,7 @@
                     positivePct,
                     garminSuspectedPct,
                     fitbitSuspectedPct,
+                    polarSuspectedPct,
                     avgAbsTrimpDiffPerWeek,
                     avgGarminTrimpPerWeek,
                     avgFitbitTrimpPerWeek,
@@ -672,7 +691,7 @@
                 tiles.appendChild(buildDashboardTile(
                     'Prevalence of Cadence Lock',
                     `${formatPercent(stats.positivePct)} (${stats.positiveCount}/${stats.totalRuns})`,
-                    `Garmin suspected: ${formatPercent(stats.garminSuspectedPct)} · Fitbit suspected: ${formatPercent(stats.fitbitSuspectedPct)}`
+                    `Garmin suspected: ${formatPercent(stats.garminSuspectedPct)} · Fitbit suspected: ${formatPercent(stats.fitbitSuspectedPct)} · Polar suspected: ${formatPercent(stats.polarSuspectedPct)}`
                 ));
                 tiles.appendChild(buildDashboardTile('Avg Garmin TRIMP / Week', formatTrimpPerWeek(stats.avgGarminTrimpPerWeek)));
                 tiles.appendChild(buildDashboardTile('Avg Fitbit TRIMP / Week', formatTrimpPerWeek(stats.avgFitbitTrimpPerWeek)));
