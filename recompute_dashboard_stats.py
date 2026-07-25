@@ -8,26 +8,28 @@ New manifest fields per run:
                                    largest |mean_fitbit - mean_garmin| gap
                                    (analysis.worst_pace_divergence()).
     worst_pace_bucket_gap_bpm   - that gap, in bpm.
-    worst_bucket_true_hr_bpm    - at that same bucket, the mean HR of the
-                                   device NOT manually flagged as suspect
-                                   (flag == positive_garmin -> Fitbit's mean;
-                                   positive_fitbit -> Garmin's mean). None for
-                                   positive_both/negative/unreviewed runs,
-                                   since there's no presumed-accurate side to
-                                   pick for those. This is an approximation
-                                   bounded by manual review accuracy, NOT a
-                                   true per-instant classification - the
-                                   dashboard must caveat it as such
-                                   (Objective #3's real per-instant detector
-                                   doesn't exist yet).
+    worst_bucket_true_hr_bpm    - at that same bucket, the mean HR of
+                                   whichever device is NOT flagged positive
+                                   while the other IS (garmin_flag positive
+                                   + fitbit_flag negative -> Fitbit's mean;
+                                   fitbit_flag positive + garmin_flag
+                                   negative -> Garmin's mean). None when
+                                   both devices are positive, both negative,
+                                   or either is unreviewed, since there's no
+                                   presumed-accurate side to pick. This is an
+                                   approximation bounded by manual review
+                                   accuracy, NOT a true per-instant
+                                   classification - the dashboard must
+                                   caveat it as such (Objective #3's real
+                                   per-instant detector doesn't exist yet).
 
 Run:
     python recompute_dashboard_stats.py
 
-Verifies and prints that every run's "flag" is byte-identical before and
-after - a manual cadence-lock review judgment must never be touched by an
-automated recompute (same check used for this session's earlier TRIMP
-migration).
+Verifies and prints that every run's garmin_flag/fitbit_flag are byte-
+identical before and after - a manual cadence-lock review judgment must
+never be touched by an automated recompute (same check used for this
+session's earlier TRIMP migration).
 """
 import json
 import os
@@ -39,19 +41,24 @@ DOCS_DATA_DIR = publish_run.DOCS_DATA_DIR
 INDEX_PATH = os.path.join(DOCS_DATA_DIR, "index.json")
 
 
-def _non_suspect_true_hr(flag: str, worst_bucket: str, pace_hr_distribution: dict):
-    """Returns the non-suspect device's mean HR at worst_bucket for
-    positive_garmin/positive_fitbit runs, else None. See module docstring.
+def _non_suspect_true_hr(garmin_flag: str, fitbit_flag: str, worst_bucket: str, pace_hr_distribution: dict):
+    """Returns the non-suspect device's mean HR at worst_bucket when exactly
+    one device is flagged positive and the other negative, else None. See
+    module docstring.
     """
     if worst_bucket is None:
         return None
 
-    if flag == "positive_garmin":
+    garmin_positive = bool(garmin_flag) and garmin_flag.startswith("positive")
+    fitbit_positive = bool(fitbit_flag) and fitbit_flag.startswith("positive")
+
+    if garmin_positive and fitbit_flag == "negative":
         non_suspect = "fitbit"
-    elif flag == "positive_fitbit":
+    elif fitbit_positive and garmin_flag == "negative":
         non_suspect = "garmin"
     else:
-        # positive_both / negative / unreviewed: no presumed-accurate side.
+        # Both positive, both negative, or either unreviewed: no
+        # presumed-accurate side.
         return None
 
     bucket_stats = pace_hr_distribution.get(non_suspect, {}).get(worst_bucket)
@@ -64,7 +71,7 @@ def main():
     with open(INDEX_PATH, "r") as f:
         manifest = json.load(f)
 
-    flags_before = {run["id"]: run.get("flag") for run in manifest}
+    flags_before = {run["id"]: (run.get("garmin_flag"), run.get("fitbit_flag")) for run in manifest}
 
     updated = 0
     missing_run_json = []
@@ -93,12 +100,12 @@ def main():
             worst_bucket = divergence["bucket"]
             run["worst_pace_bucket"] = worst_bucket
             run["worst_pace_bucket_gap_bpm"] = divergence["gap_bpm"]
-            true_hr = _non_suspect_true_hr(run.get("flag"), worst_bucket, pace_hr_distribution)
+            true_hr = _non_suspect_true_hr(run.get("garmin_flag"), run.get("fitbit_flag"), worst_bucket, pace_hr_distribution)
             run["worst_bucket_true_hr_bpm"] = round(true_hr, 1) if true_hr is not None else None
 
         updated += 1
 
-    flags_after = {run["id"]: run.get("flag") for run in manifest}
+    flags_after = {run["id"]: (run.get("garmin_flag"), run.get("fitbit_flag")) for run in manifest}
     mismatches = [
         activity_id for activity_id in flags_before
         if flags_before[activity_id] != flags_after.get(activity_id)

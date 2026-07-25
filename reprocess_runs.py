@@ -134,7 +134,8 @@ def main(argv=None):
     with httpx.Client(timeout=20.0) as google_client:
         for run in manifest:
             activity_id = run["id"]
-            existing_flag = run.get("flag", "unreviewed")
+            existing_garmin_flag = run.get("garmin_flag", "unreviewed")
+            existing_fitbit_flag = run.get("fitbit_flag", "unreviewed")
 
             try:
                 new_payload, old_payload = reprocess_run(
@@ -148,7 +149,7 @@ def main(argv=None):
                 continue
 
             if args.dry_run:
-                new_summary = publish_run._summarize(new_payload, existing_flag)
+                new_summary = publish_run._summarize(new_payload, existing_garmin_flag, existing_fitbit_flag)
                 old_garmin_nonnull = sum(1 for v in old_payload["garmin_hr"] if v is not None)
                 new_garmin_nonnull = sum(1 for v in new_payload["garmin_hr"] if v is not None)
                 print(f"--- {activity_id} ---")
@@ -160,11 +161,11 @@ def main(argv=None):
                 )
                 print(f"  garmin_device_name: {new_summary['garmin_device_name']}, fitbit_device_name: {new_summary['fitbit_device_name']}")
                 print(f"  garmin_sample_rate_hz: {new_summary['garmin_sample_rate_hz']}, fitbit_sample_rate_hz: {new_summary['fitbit_sample_rate_hz']}")
-                print(f"  flag unchanged: {run.get('flag') == new_summary['flag']}")
+                print(f"  flags unchanged: garmin={run.get('garmin_flag') == new_summary['garmin_flag']}, fitbit={run.get('fitbit_flag') == new_summary['fitbit_flag']}")
             else:
-                entry = publish_run.write_run(new_payload, existing_flag)
+                entry = publish_run.write_run(new_payload, existing_garmin_flag, existing_fitbit_flag)
                 print(
-                    f"Reprocessed {activity_id}: flag={entry['flag']}, "
+                    f"Reprocessed {activity_id}: garmin_flag={entry['garmin_flag']}, fitbit_flag={entry['fitbit_flag']}, "
                     f"TRIMP garmin/fitbit={entry['total_trimp_garmin']}/{entry['total_trimp_fitbit']}"
                 )
 

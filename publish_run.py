@@ -1,11 +1,20 @@
 """Publishes the latest Garmin/Fitbit run as static JSON for the GitHub Pages
 site under docs/. Run locally, or by .github/workflows/publish.yml.
 
-The "flag" is a manual cadence-lock verdict (Objective #3's real detection
-heuristic doesn't exist yet) - you review the chart yourself and pass your
-judgment call in, naming which device you suspect (or "both"):
+Each device gets its own manual review verdict (Objective #3's real
+detection heuristic doesn't exist yet) - you review the chart yourself and
+pass a per-device judgment call in, naming which failure mode (if any) that
+specific device showed:
 
-    python publish_run.py --flag positive_fitbit
+    python publish_run.py --garmin-flag positive_lag --fitbit-flag positive_cadence
+
+FLAG_CHOICES is deliberately failure-mode-based, not just "positive/negative" -
+different devices have shown genuinely different failure modes on the same
+run (see PROJECT_DIRECTIVE.md Objectives #3, #10, #11): positive_cadence is
+Fitbit-style cadence substitution, positive_lag is Garmin's delayed/over-
+smoothed signal, positive_blunder is a bounded excursion-and-recovery
+dropout unrelated to cadence. A device can only carry one verdict per run,
+so pick whichever failure mode best characterizes what you saw.
 """
 import argparse
 import json
@@ -21,6 +30,10 @@ import main
 
 
 DOCS_DATA_DIR = os.path.join("docs", "data")
+
+# Shared by every publish entry point (publish_run.py, publish_reference_run.py,
+# publish_polar_run.py) so the vocabulary only has to change in one place.
+FLAG_CHOICES = ["unreviewed", "negative", "positive_cadence", "positive_lag", "positive_blunder"]
 
 
 def _resolve_hr_max() -> float | None:
@@ -162,7 +175,7 @@ def compute_trimp_stats(time: list, garmin_hr: list, fitbit_hr: list, polar_hr: 
     }
 
 
-def _summarize(payload: dict, flag: str) -> dict:
+def _summarize(payload: dict, garmin_flag: str, fitbit_flag: str) -> dict:
     hr_values = [v for v in payload["garmin_hr"] if v is not None]
     fitbit_values = [v for v in payload["fitbit_hr"] if v is not None]
     polar_values = [v for v in payload.get("polar_hr") or [] if v is not None]
@@ -185,7 +198,8 @@ def _summarize(payload: dict, flag: str) -> dict:
         "avg_fitbit_hr": round(sum(fitbit_values) / len(fitbit_values), 1) if fitbit_values else None,
         "avg_polar_hr": round(sum(polar_values) / len(polar_values), 1) if polar_values else None,
         "avg_cadence_spm": round(sum(cadence_values) / len(cadence_values), 1) if cadence_values else None,
-        "flag": flag,
+        "garmin_flag": garmin_flag,
+        "fitbit_flag": fitbit_flag,
         "garmin_device_name": payload.get("garmin_device_name"),
         "fitbit_device_name": payload.get("fitbit_device_name"),
         "polar_device_name": payload.get("polar_device_name"),
@@ -198,7 +212,7 @@ def _summarize(payload: dict, flag: str) -> dict:
     }
 
 
-def write_run(payload: dict, flag: str) -> dict:
+def write_run(payload: dict, garmin_flag: str, fitbit_flag: str) -> dict:
     """Writes a run payload to docs/data/<id>.json and upserts its summary
     into docs/data/index.json. Shared by the single-run publish() flow and
     sync_runs.py's bulk backfill, so there's exactly one write path.
@@ -228,7 +242,7 @@ def write_run(payload: dict, flag: str) -> dict:
         with open(index_path, "r") as f:
             manifest = json.load(f)
 
-    entry = _summarize(payload, flag)
+    entry = _summarize(payload, garmin_flag, fitbit_flag)
 
     # Lightweight summary stat for the gallery: how many pace buckets
     # present in both devices' distributions show a mean-HR gap > 10 bpm
@@ -251,26 +265,23 @@ def write_run(payload: dict, flag: str) -> dict:
     return entry
 
 
-def publish(flag: str) -> dict:
+def publish(garmin_flag: str, fitbit_flag: str) -> dict:
     refresh_token = _get_refresh_token()
     access_token = main.refresh_google_token(refresh_token)
     payload = main.build_run_payload(access_token, use_garmin_cache=False)
-    return write_run(payload, flag)
+    return write_run(payload, garmin_flag, fitbit_flag)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--flag",
-        choices=["positive_garmin", "positive_fitbit", "positive_both", "negative", "unreviewed"],
-        default="unreviewed",
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--garmin-flag", choices=FLAG_CHOICES, default="unreviewed")
+    parser.add_argument("--fitbit-flag", choices=FLAG_CHOICES, default="unreviewed")
     args = parser.parse_args()
 
     try:
-        entry = publish(args.flag)
+        entry = publish(args.garmin_flag, args.fitbit_flag)
     except Exception as e:
         print(f"Publish failed: {type(e).__name__}: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Published run {entry['id']} ({entry['start']} -> {entry['end']}), flag={entry['flag']}")
+    print(f"Published run {entry['id']} ({entry['start']} -> {entry['end']}), garmin_flag={entry['garmin_flag']}, fitbit_flag={entry['fitbit_flag']}")

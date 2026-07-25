@@ -285,7 +285,7 @@ def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: 
 
     payload = merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name, polar_df, polar_device_name)
     payload = enrich_with_weather(payload)
-    return publish_run.write_run(payload, "unreviewed")
+    return publish_run.write_run(payload, "unreviewed", "unreviewed")
 
 
 def main(argv=None):

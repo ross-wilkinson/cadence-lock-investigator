@@ -2,6 +2,7 @@
 <html>
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Cadence Lock Investigation &mdash; Runs</title>
         <style>
             * { box-sizing: border-box; }
@@ -59,6 +60,34 @@
             h1 { font-size: 20px; font-weight: 600; margin: 0; color: var(--text-primary); }
             h2 { font-size: 15px; font-weight: 600; margin: 0; color: var(--text-primary); }
             #subtitle { font-size: 13px; color: var(--text-secondary); margin: 2px 0 0; }
+
+            /* Native <details>/<summary> for the Summary Dashboard and
+               Activity Log sections - free keyboard/accessibility support and
+               no JS needed for the actual show/hide, unlike a hand-rolled
+               collapse. Only the marker is restyled (a rotating triangle
+               instead of each browser's own default) so it matches the
+               h1/h2 look. */
+            .collapsibleSection { display: flex; flex-direction: column; gap: 8px; }
+            .collapsibleSection > summary {
+                font-size: 15px;
+                font-weight: 600;
+                color: var(--text-primary);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                user-select: none;
+            }
+            .collapsibleSection > summary::-webkit-details-marker { display: none; }
+            .collapsibleSection > summary::marker { content: ''; }
+            .collapsibleSection > summary::before {
+                content: '▸';
+                display: inline-block;
+                font-size: 11px;
+                color: var(--text-muted);
+                transition: transform 0.15s ease;
+            }
+            .collapsibleSection[open] > summary::before { transform: rotate(90deg); }
 
             #loader { font-size: 14px; color: var(--text-secondary); text-align: center; margin-top: 50px; }
 
@@ -242,42 +271,108 @@
                 padding-top: 8px;
                 margin-top: 4px;
             }
+
+            /* Phone-width layout: stack each run card into a single column
+               (meta / stats / badges top-to-bottom instead of squeezed into
+               one wrapped row) and bump the text sizes that mattered most for
+               on-the-move reading - dates, TRIMP values, badges - rather than
+               scaling everything uniformly. */
+            @media (max-width: 640px) {
+                body { padding: 12px; gap: 10px; }
+                h1 { font-size: 22px; }
+                #subtitle { font-size: 14px; }
+
+                a.runCard {
+                    flex-direction: column;
+                    align-items: stretch;
+                    gap: 10px;
+                    padding: 14px 16px;
+                }
+                .runCard .runMeta { min-width: 0; }
+                .runCard .runDate { font-size: 16px; }
+                .runCard .runDuration { font-size: 13px; }
+
+                .runCard .runStats { gap: 16px 20px; }
+                .runStat { min-width: 76px; }
+                .runStat .statValue { font-size: 14px; }
+
+                /* Badges read better as a left-aligned wrapping row under the
+                   stats on a single-column card than as the desktop's
+                   right-aligned vertical stack, which would otherwise look
+                   oddly indented once the card is full-width. flex-wrap is
+                   load-bearing here (easy to miss): without it, multiple
+                   badges try to stay on one unbroken row and overflow past
+                   the card's edge instead of dropping to a new line. */
+                .runCard .runBadges {
+                    flex-direction: row;
+                    flex-wrap: wrap;
+                    align-items: flex-start;
+                }
+                .badge {
+                    font-size: 12px;
+                    padding: 4px 10px;
+                    /* A single badge's own text (e.g. "Garmin Instinct 2X
+                       Solar: Suspected Cadence Lock") can be wider than the
+                       whole card on a narrow phone - flex-wrap only wraps
+                       multiple badges onto new lines, it can't shrink one
+                       badge that's individually too wide. Letting the text
+                       itself wrap (instead of the desktop's single-line
+                       nowrap pill) is what actually keeps it inside the
+                       card's bounds. */
+                    white-space: normal;
+                    max-width: 100%;
+                    border-radius: 12px;
+                    text-align: center;
+                }
+
+                #dashboard { padding: 14px 16px; }
+                #dashboardTiles { gap: 18px 20px; }
+                .dashboardTile { min-width: 128px; }
+                .dashboardTile .dashboardValue { font-size: 22px; }
+
+                #dashboardLocomotion { gap: 18px 20px; }
+                .locomotionTiles { gap: 18px 20px; }
+            }
         </style>
     </head>
     <body>
         <header>
             <div>
                 <h1>Cadence Lock Investigation</h1>
-                <p id="subtitle">An ongoing investigation into how often wearable heart-rate sensors suffer from cadence lock, and what that does to training-load estimates.</p>
+                <p id="subtitle">An ongoing investigation into how often wearable heart-rate sensors suffer from cadence lock, lag, and other blunders, and what that does to training-load estimates.</p>
             </div>
         </header>
 
-        <section id="dashboard">
-            <div id="dashboardTiles"></div>
-            <div id="dashboardLocomotion">
-                <div class="locomotionGroup">
-                    <h3 class="locomotionHeading">Walking</h3>
-                    <div class="locomotionTiles" id="locomotionTilesWalking"></div>
+        <details class="collapsibleSection" open>
+            <summary>Summary Dashboard</summary>
+            <section id="dashboard">
+                <div id="dashboardTiles"></div>
+                <div id="dashboardLocomotion">
+                    <div class="locomotionGroup">
+                        <h3 class="locomotionHeading">Walking</h3>
+                        <div class="locomotionTiles" id="locomotionTilesWalking"></div>
+                    </div>
+                    <div class="locomotionGroup">
+                        <h3 class="locomotionHeading">Running</h3>
+                        <div class="locomotionTiles" id="locomotionTilesRunning"></div>
+                    </div>
                 </div>
-                <div class="locomotionGroup">
-                    <h3 class="locomotionHeading">Running</h3>
-                    <div class="locomotionTiles" id="locomotionTilesRunning"></div>
+                <div id="dashboardCaveat">
+                    "Most common pace during lock", "avg HR error during lock", and "most common true HR" are
+                    derived from manually-reviewed cadence-lock flags (which device you judged suspect per run), not an
+                    automated per-instant detector, which doesn't exist yet. Each of those three is further split into
+                    walking vs. running using an 8:00 min/km pace threshold (8:00/km or slower counts as walking, faster
+                    counts as running).
                 </div>
-            </div>
-            <div id="dashboardCaveat">
-                "Most common pace during lock", "avg HR error during lock", and "most common true HR" are
-                derived from manually-reviewed cadence-lock flags (which device you judged suspect per run), not an
-                automated per-instant detector, which doesn't exist yet. Each of those three is further split into
-                walking vs. running using an 8:00 min/km pace threshold (8:00/km or slower counts as walking, faster
-                counts as running).
-            </div>
-        </section>
+            </section>
+        </details>
 
-        <h2>Activity Log</h2>
-
-        <div id="loader">Loading published runs&hellip;</div>
-        <div id="emptyState">No runs published yet. Publish a run to see it listed here.</div>
-        <div id="runList"></div>
+        <details class="collapsibleSection" open>
+            <summary>Activity Log</summary>
+            <div id="loader">Loading published runs&hellip;</div>
+            <div id="emptyState">No runs published yet. Publish a run to see it listed here.</div>
+            <div id="runList"></div>
+        </details>
 
         <script>
             function formatDuration(totalSeconds) {
@@ -351,28 +446,41 @@
                 return `${base} · ${Math.abs(pct).toFixed(1)}%`;
             }
 
-            const FLAG_LABELS = {
-                positive_garmin: 'Suspected Cadence Lock: GARMIN',
-                positive_fitbit: 'Suspected Cadence Lock: FITBIT',
-                positive_both: 'Suspected Cadence Lock: BOTH',
-                positive: 'Suspected Cadence Lock', // legacy runs not yet re-flagged to a device
-                negative: 'Accurate HR Data',
+            // Failure-mode vocabulary, not just positive/negative - different
+            // devices have shown genuinely different failure modes on the same
+            // run (see PROJECT_DIRECTIVE.md Objectives #3, #10, #11):
+            // positive_cadence is Fitbit-style cadence substitution,
+            // positive_lag is Garmin's delayed/over-smoothed signal,
+            // positive_blunder is a bounded excursion-and-recovery dropout
+            // unrelated to cadence. Keys must match publish_run.py's
+            // FLAG_CHOICES exactly.
+            const FLAG_VERDICT_LABELS = {
+                positive_cadence: 'Suspected Cadence Lock',
+                positive_lag: 'Suspected Lag Artifact',
+                positive_blunder: 'Suspected Blunder',
+                negative: 'Accurate HR',
             };
 
-            function badgeFor(flag) {
+            // One badge per device (garmin_flag/fitbit_flag are independent -
+            // a single run can show a cadence-lock verdict on one device and a
+            // blunder on the other, so a single combined badge can't express
+            // both). deviceName prefixes the verdict since the badge alone
+            // doesn't otherwise say which device it's about.
+            function deviceBadge(deviceName, flag) {
                 const span = document.createElement('span');
                 const cls = flag && flag.startsWith('positive') ? 'badge-positive'
                     : flag === 'negative' ? 'badge-negative'
                     : 'badge-unreviewed';
-                const label = FLAG_LABELS[flag] || 'Unreviewed';
+                const verdict = FLAG_VERDICT_LABELS[flag] || 'Unreviewed';
+                const label = deviceName ? `${deviceName}: ${verdict}` : verdict;
                 span.className = `badge ${cls}`;
                 span.appendChild(document.createTextNode(label));
                 return span;
             }
 
-            // Second, independent badge - a run can be both e.g. "unreviewed"
-            // (cadence-lock verdict) AND a reference run (protocol/device-mix
-            // category), so this is additive to badgeFor(), not a replacement.
+            // Third, independent badge - a run can be both e.g. "unreviewed"
+            // on both devices AND a reference run (protocol/device-mix
+            // category), so this is additive to deviceBadge(), not a replacement.
             function referenceBadge() {
                 const span = document.createElement('span');
                 span.className = 'badge badge-reference';
@@ -442,7 +550,8 @@
 
                 const badges = document.createElement('div');
                 badges.className = 'runBadges';
-                badges.appendChild(badgeFor(run.flag));
+                badges.appendChild(deviceBadge(run.garmin_device_name, run.garmin_flag));
+                badges.appendChild(deviceBadge(run.fitbit_device_name, run.fitbit_flag));
                 if (hasPolarReference) {
                     badges.appendChild(referenceBadge());
                 }
@@ -547,28 +656,28 @@
             function computeDashboardStats(manifest) {
                 const totalRuns = manifest.length;
 
-                const positiveRuns = manifest.filter(run => run.flag && run.flag.startsWith('positive'));
+                const isPositive = (flag) => Boolean(flag) && flag.startsWith('positive');
+                const positiveRuns = manifest.filter(run => isPositive(run.garmin_flag) || isPositive(run.fitbit_flag));
                 const positivePct = totalRuns ? (positiveRuns.length / totalRuns) * 100 : null;
 
-                // Per-device prevalence: positive_both counts toward both sides.
-                // Bare legacy "positive" (not yet re-flagged to a device) is
-                // deliberately excluded from both - it isn't attributable.
-                const garminSuspectedRuns = manifest.filter(run => run.flag === 'positive_garmin' || run.flag === 'positive_both');
-                const fitbitSuspectedRuns = manifest.filter(run => run.flag === 'positive_fitbit' || run.flag === 'positive_both');
+                // Per-device prevalence: garmin_flag/fitbit_flag are
+                // independent, so a run with both positive counts toward
+                // both sides (same as the old positive_both behavior).
+                const garminSuspectedRuns = manifest.filter(run => isPositive(run.garmin_flag));
+                const fitbitSuspectedRuns = manifest.filter(run => isPositive(run.fitbit_flag));
                 const garminSuspectedPct = totalRuns ? (garminSuspectedRuns.length / totalRuns) * 100 : null;
                 const fitbitSuspectedPct = totalRuns ? (fitbitSuspectedRuns.length / totalRuns) * 100 : null;
 
                 // Symmetric with garmin/fitbitSuspected above: "suspected" means
-                // the flag accuses THAT device of showing the artifact. The flag
-                // vocabulary (publish_run.py's --flag choices) has no
-                // "positive_polar" value yet - a run.garmin_device_name of "Polar
-                // Vantage V3" with flag=positive_fitbit means Polar was the
-                // *corroborating* device, not the suspect, so it must NOT count
-                // here even though the device name contains "polar". This stays
-                // at 0% until a run is ever flagged with Polar itself as suspect
-                // (which would need a new flag value - not added yet, since no
-                // run has ever needed one).
-                const polarSuspectedRuns = manifest.filter(run => run.flag === 'positive_polar');
+                // that run's garmin_flag is positive AND the device filling
+                // that slot is actually Polar (see publish_polar_run.py - the
+                // "garmin_hr slot" means "primary HR+cadence device", not
+                // literal Garmin hardware). Unlike the old single-flag scheme,
+                // this needs no dedicated "positive_polar" vocabulary value -
+                // any device in that slot can carry a normal positive_* verdict.
+                const polarSuspectedRuns = manifest.filter(run =>
+                    isPositive(run.garmin_flag) && run.garmin_device_name && run.garmin_device_name.toLowerCase().includes('polar')
+                );
                 const polarSuspectedPct = totalRuns ? (polarSuspectedRuns.length / totalRuns) * 100 : null;
 
                 // Tier 1: average |TRIMP difference| per distinct ISO week spanned
@@ -653,13 +762,19 @@
                         ? gaps.reduce((sum, v) => sum + v, 0) / gaps.length
                         : null;
 
-                    // "True" HR = the device NOT manually flagged as suspect for
-                    // that run (positive_both/negative/unreviewed excluded - no
-                    // presumed-accurate side to pick). Approximate proxy bounded
-                    // by manual review accuracy, not automated per-instant
-                    // detection.
+                    // "True" HR = the device NOT flagged positive for that run,
+                    // only when exactly one side is positive and the other
+                    // negative (both positive/both negative/either unreviewed
+                    // excluded - no presumed-accurate side to pick). Approximate
+                    // proxy bounded by manual review accuracy, not automated
+                    // per-instant detection. Matches
+                    // recompute_dashboard_stats.py's _non_suspect_true_hr, which
+                    // is what actually computed worst_bucket_true_hr_bpm.
                     const trueHrBuckets = runs
-                        .filter(run => run.flag === 'positive_garmin' || run.flag === 'positive_fitbit')
+                        .filter(run =>
+                            (isPositive(run.garmin_flag) && run.fitbit_flag === 'negative') ||
+                            (isPositive(run.fitbit_flag) && run.garmin_flag === 'negative')
+                        )
                         .map(run => run.worst_bucket_true_hr_bpm)
                         .filter(v => v !== null && v !== undefined && !isNaN(v))
                         .map(bpmBucketLabel);

@@ -15,7 +15,11 @@ and cadence/pace", not literally Garmin hardware - Polar fills exactly the
 same role for this run. See docs/index.html and docs/run.html for the
 corresponding device-name-aware label fixes on the display side.
 
-    python publish_polar_run.py raw_data/polar/Ross_Wilkinson_2026-07-23_19-03-00.FIT --flag positive_fitbit
+    python publish_polar_run.py raw_data/polar/Ross_Wilkinson_2026-07-23_19-03-00.FIT --garmin-flag unreviewed --fitbit-flag positive_cadence
+
+Note: "--garmin-flag" reviews whichever device fills the primary HR/cadence
+slot for this run - Polar itself here, per the design note above, not
+literal Garmin hardware.
 """
 import argparse
 import sys
@@ -56,18 +60,15 @@ def build_polar_run_payload(fit_path: str, google_access_token: str) -> dict:
 def main_cli(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("fit_path")
-    parser.add_argument(
-        "--flag",
-        choices=["positive_garmin", "positive_fitbit", "positive_both", "negative", "unreviewed"],
-        default="unreviewed",
-    )
+    parser.add_argument("--garmin-flag", choices=publish_run.FLAG_CHOICES, default="unreviewed")
+    parser.add_argument("--fitbit-flag", choices=publish_run.FLAG_CHOICES, default="unreviewed")
     args = parser.parse_args(argv)
 
     refresh_token = publish_run._get_refresh_token()
     access_token = main.refresh_google_token(refresh_token)
     payload = build_polar_run_payload(args.fit_path, access_token)
-    entry = publish_run.write_run(payload, args.flag)
-    print(f"Published run {entry['id']} ({entry['start']} -> {entry['end']}), flag={entry['flag']}, device={entry['garmin_device_name']}")
+    entry = publish_run.write_run(payload, args.garmin_flag, args.fitbit_flag)
+    print(f"Published run {entry['id']} ({entry['start']} -> {entry['end']}), garmin_flag={entry['garmin_flag']}, fitbit_flag={entry['fitbit_flag']}, device={entry['garmin_device_name']}")
     return entry
 
 

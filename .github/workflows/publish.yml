@@ -3,10 +3,15 @@ name: Publish run
 on:
   workflow_dispatch:
     inputs:
-      flag:
-        description: "Cadence-lock verdict for this run"
+      garmin_flag:
+        description: "Cadence-lock verdict for Garmin (or whichever device fills its slot - see publish_polar_run.py)"
         type: choice
-        options: [unreviewed, positive_garmin, positive_fitbit, positive_both, negative]
+        options: [unreviewed, negative, positive_cadence, positive_lag, positive_blunder]
+        default: unreviewed
+      fitbit_flag:
+        description: "Cadence-lock verdict for Fitbit"
+        type: choice
+        options: [unreviewed, negative, positive_cadence, positive_lag, positive_blunder]
         default: unreviewed
 
 permissions:
@@ -33,12 +38,12 @@ jobs:
           GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
           HR_MAX: ${{ secrets.HR_MAX }}
           BIRTH_YEAR: ${{ secrets.BIRTH_YEAR }}
-        run: python publish_run.py --flag "${{ inputs.flag }}"
+        run: python publish_run.py --garmin-flag "${{ inputs.garmin_flag }}" --fitbit-flag "${{ inputs.fitbit_flag }}"
 
       - name: Commit published data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/
-          git diff --cached --quiet || git commit -m "Publish run (${{ inputs.flag }})"
+          git diff --cached --quiet || git commit -m "Publish run (garmin=${{ inputs.garmin_flag }}, fitbit=${{ inputs.fitbit_flag }})"
           git push
