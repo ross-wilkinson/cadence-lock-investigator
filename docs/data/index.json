@@ -8,7 +8,7 @@
     "avg_fitbit_hr": 159.9,
     "avg_polar_hr": 130.4,
     "avg_cadence_spm": 165.0,
-    "flag": "unreviewed",
+    "flag": "positive_fitbit",
     "garmin_device_name": "Garmin Instinct 2X Solar",
     "fitbit_device_name": "Fitbit Inspire 3",
     "polar_device_name": "Polar H10",
