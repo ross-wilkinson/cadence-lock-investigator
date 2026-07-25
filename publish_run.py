@@ -68,6 +68,33 @@ def _get_refresh_token() -> str:
     )
 
 
+def _get_polar_access_token() -> str | None:
+    """Same env-var-first, local-db-fallback pattern as _get_refresh_token,
+    but returns None instead of raising when neither is available - Polar
+    is an optional enrichment (not every run has an H10 reference device
+    on it), so callers should treat "no token" as "skip Polar", not a hard
+    failure. Unlike Google's GOOGLE_REFRESH_TOKEN, POLAR_ACCESS_TOKEN is a
+    long-lived access token used directly, not exchanged for one - Polar's
+    v3 AccessLink endpoint has never issued this project a refresh_token
+    (confirmed empirically, see main.py's polar_callback), so there's
+    nothing to refresh it with.
+    """
+    env_token = os.getenv("POLAR_ACCESS_TOKEN")
+    if env_token:
+        return env_token
+
+    if os.path.exists("investigator.db"):
+        conn = sqlite3.connect("investigator.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT access_token FROM auth_tokens WHERE provider = 'polar'")
+        row = cursor.fetchone()
+        conn.close()
+        if row and row[0]:
+            return row[0]
+
+    return None
+
+
 def compute_trimp_stats(time: list, garmin_hr: list, fitbit_hr: list, polar_hr: list | None = None) -> dict:
     """Objective #4: training-load overestimation via Stagno's Modified
     TRIMP (Stagno, Thatcher & van Someren, 2007) - only computed if an

@@ -894,6 +894,41 @@ def fetch_polar_exercise_samples(access_token: str, exercise_id: str) -> tuple[p
     return polar_df, device_name
 
 
+def find_matching_polar_exercise(polar_access_token: str, g_start: pd.Timestamp, g_end: pd.Timestamp, tolerance_minutes: float = 60.0):
+    """Returns the Polar exercise (raw dict) whose window overlaps
+    [g_start, g_end], or - if none overlap - the closest one starting
+    within tolerance_minutes, else None. A wide default tolerance because
+    the H10 is expected to run for a walk-to-the-site lead-in/lead-out
+    around the shorter Garmin+Fitbit window, not run in lockstep with it.
+    """
+    from datetime import timezone, timedelta
+
+    exercises = list_polar_exercises(polar_access_token, samples=False)
+    best = None
+    best_delta = None
+    for ex in exercises:
+        start_time = ex.get("start_time")
+        offset_min = ex.get("start_time_utc_offset")
+        if not start_time or offset_min is None:
+            continue
+        ex_start = pd.to_datetime(start_time).tz_localize(timezone(timedelta(minutes=offset_min)))
+        duration_iso = ex.get("duration") or "PT0S"
+        ex_seconds = pd.Timedelta(duration_iso).total_seconds()
+        ex_end = ex_start + pd.Timedelta(seconds=ex_seconds)
+
+        if ex_start <= g_end and g_start <= ex_end:
+            return ex  # overlap -> immediate match, no ambiguity to resolve
+
+        delta_minutes = min(
+            abs((ex_start - g_start).total_seconds()),
+            abs((ex_end - g_end).total_seconds()),
+        ) / 60.0
+        if delta_minutes <= tolerance_minutes and (best_delta is None or delta_minutes < best_delta):
+            best, best_delta = ex, delta_minutes
+
+    return best
+
+
 def parse_polar_fit_file(file_path: str) -> tuple[pd.DataFrame, str | None]:
     """Parses a Polar Flow FIT export (e.g. from a manual "Export training
     session" download) into a DataFrame indexed by time with 'polar_hr' and

@@ -23,7 +23,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import date, timedelta, timezone
+from datetime import date, timedelta
 
 import httpx
 import pandas as pd
@@ -32,39 +32,6 @@ from garminconnect import Garmin
 import main
 import publish_run
 import sync_runs
-
-
-def find_matching_polar_exercise(polar_access_token: str, g_start: pd.Timestamp, g_end: pd.Timestamp, tolerance_minutes: float = 60.0):
-    """Returns the Polar exercise (raw dict) whose window overlaps
-    [g_start, g_end], or - if none overlap - the closest one starting
-    within tolerance_minutes, else None. A wide default tolerance because
-    the H10 is expected to run for a walk-to-the-site lead-in/lead-out
-    around the shorter Garmin+Fitbit window, not run in lockstep with it.
-    """
-    exercises = main.list_polar_exercises(polar_access_token, samples=False)
-    best = None
-    best_delta = None
-    for ex in exercises:
-        start_time = ex.get("start_time")
-        offset_min = ex.get("start_time_utc_offset")
-        if not start_time or offset_min is None:
-            continue
-        ex_start = pd.to_datetime(start_time).tz_localize(timezone(timedelta(minutes=offset_min)))
-        duration_iso = ex.get("duration") or "PT0S"
-        ex_seconds = pd.Timedelta(duration_iso).total_seconds()
-        ex_end = ex_start + pd.Timedelta(seconds=ex_seconds)
-
-        if ex_start <= g_end and g_start <= ex_end:
-            return ex  # overlap -> immediate match, no ambiguity to resolve
-
-        delta_minutes = min(
-            abs((ex_start - g_start).total_seconds()),
-            abs((ex_end - g_end).total_seconds()),
-        ) / 60.0
-        if delta_minutes <= tolerance_minutes and (best_delta is None or delta_minutes < best_delta):
-            best, best_delta = ex, delta_minutes
-
-    return best
 
 
 def build_latest_reference_run_payload(garmin_client, polar_access_token: str, google_client: httpx.Client, google_headers: dict, garmin_device_map: dict) -> dict:
@@ -112,7 +79,7 @@ def build_latest_reference_run_payload(garmin_client, polar_access_token: str, g
 
     g_start = pd.Timestamp(garmin_activity["startTimeGMT"], tz="UTC")
     g_end = g_start + pd.Timedelta(seconds=garmin_activity["duration"])
-    polar_exercise = find_matching_polar_exercise(polar_access_token, g_start, g_end)
+    polar_exercise = main.find_matching_polar_exercise(polar_access_token, g_start, g_end)
 
     polar_df, polar_device_name = pd.DataFrame(), None
     if polar_exercise is not None:
@@ -143,7 +110,12 @@ def main_cli(argv=None):
     google_access_token = main.refresh_google_token(refresh_token)
     google_headers = {"Authorization": f"Bearer {google_access_token}"}
 
-    polar_access_token = main.get_token("polar")
+    polar_access_token = publish_run._get_polar_access_token()
+    if not polar_access_token:
+        raise RuntimeError(
+            "No Polar access token available. Set POLAR_ACCESS_TOKEN, or run "
+            "/auth/polar locally and retry."
+        )
 
     with httpx.Client(timeout=20.0) as google_client:
         payload = build_latest_reference_run_payload(garmin_client, polar_access_token, google_client, google_headers, garmin_device_map)

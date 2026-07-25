@@ -31,7 +31,7 @@ import publish_run
 # permanently shadowed the moment `def main(...)` is defined below (both
 # bind the same global name), silently breaking every main.xxx call in this
 # file, not just the CLI.
-from main import enrich_with_weather, fetch_fitbit_hr_df, merge_telemetry, normalize_device_name, parse_garmin_metrics, refresh_google_token
+from main import enrich_with_weather, fetch_fitbit_hr_df, fetch_polar_exercise_samples, find_matching_polar_exercise, merge_telemetry, normalize_device_name, parse_garmin_metrics, refresh_google_token
 
 
 CACHE_DIR = ".sync_cache"
@@ -212,11 +212,43 @@ def build_garmin_device_map(garmin_client) -> dict:
     }
 
 
-def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: dict, garmin_activity: dict, google_session: dict, cache_dir: str, garmin_device_map: dict) -> dict:
+def find_and_fetch_polar_match(polar_access_token: str, g_start: pd.Timestamp, g_end: pd.Timestamp, activity_id) -> tuple[pd.DataFrame, str | None]:
+    """Best-effort Polar lookup for one Garmin activity - returns
+    (empty DataFrame, None) on ANY failure (no token, no matching exercise,
+    Polar API error/expired token) rather than raising. Most nightly-synced
+    runs have no H10 reference device on them at all, so a Polar miss is
+    the expected common case, not an error; and unlike Garmin/Fitbit,
+    Polar is enrichment on top of a run this function's caller can still
+    publish perfectly well without it. If POLAR_ACCESS_TOKEN ever goes
+    stale (see publish_run._get_polar_access_token's docstring - Polar's
+    v3 AccessLink has never given this project a refresh_token, so there's
+    no automatic recovery), this prints a warning and the nightly sync
+    keeps publishing Garmin+Fitbit-only runs same as if no H10 was worn,
+    instead of failing outright.
+    """
+    if not polar_access_token:
+        return pd.DataFrame(), None
+    try:
+        polar_exercise = find_matching_polar_exercise(polar_access_token, g_start, g_end)
+        if polar_exercise is None:
+            return pd.DataFrame(), None
+        polar_df, polar_device_name = fetch_polar_exercise_samples(polar_access_token, polar_exercise["id"])
+        print(f"  Matched Polar exercise {polar_exercise['id']} for activity {activity_id} (device={polar_device_name}, {len(polar_df)} HR samples).")
+        return polar_df, polar_device_name
+    except Exception as e:
+        print(f"  WARNING: Polar lookup failed for activity {activity_id} ({type(e).__name__}: {e}) - publishing without Polar data.")
+        return pd.DataFrame(), None
+
+
+def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: dict, garmin_activity: dict, google_session: dict, cache_dir: str, garmin_device_map: dict, polar_access_token: str | None = None) -> dict:
     """Fetches Garmin activity details (using a local cache to survive an
     interrupted/rate-limited run without re-fetching) and the matched Google
     session's Fitbit HR window, merges them, and publishes via the same
-    write path publish_run.py's single-run flow uses.
+    write path publish_run.py's single-run flow uses. Also makes a
+    best-effort attempt to match this activity against a Polar exercise
+    (see find_and_fetch_polar_match) when a Polar token is available -
+    never blocks or fails the Garmin+Fitbit publish if that lookup comes
+    up empty.
     """
     activity_id = garmin_activity["activityId"]
     os.makedirs(cache_dir, exist_ok=True)
@@ -247,7 +279,11 @@ def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: 
             f"Health Connect / Garmin-sourced duplicate, not a real Fitbit sync)."
         )
 
-    payload = merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name)
+    g_start = pd.Timestamp(garmin_activity["startTimeGMT"], tz="UTC")
+    g_end = g_start + pd.Timedelta(seconds=garmin_activity["duration"])
+    polar_df, polar_device_name = find_and_fetch_polar_match(polar_access_token, g_start, g_end, activity_id)
+
+    payload = merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name, polar_df, polar_device_name)
     payload = enrich_with_weather(payload)
     return publish_run.write_run(payload, "unreviewed")
 
@@ -269,6 +305,10 @@ def main(argv=None):
     refresh_token = publish_run._get_refresh_token()
     google_access_token = refresh_google_token(refresh_token)
     headers = {"Authorization": f"Bearer {google_access_token}"}
+
+    polar_access_token = publish_run._get_polar_access_token()
+    if not polar_access_token:
+        print("No Polar access token available (POLAR_ACCESS_TOKEN unset, no local investigator.db) - all runs will publish Garmin+Fitbit only.")
 
     with httpx.Client(timeout=20.0) as google_client:
         print(f"Listing Garmin running activities {args.start_date} -> {args.end_date}...")
@@ -311,7 +351,7 @@ def main(argv=None):
             attempt = 0
             while True:
                 try:
-                    entry = fetch_and_publish_pair(garmin_client, google_client, headers, activity, session, CACHE_DIR, garmin_device_map)
+                    entry = fetch_and_publish_pair(garmin_client, google_client, headers, activity, session, CACHE_DIR, garmin_device_map, polar_access_token)
                     published.append(activity_id)
                     print(f"Published {activity_id} ({entry['start']} -> {entry['end']}), flag={entry['flag']}")
                     break
