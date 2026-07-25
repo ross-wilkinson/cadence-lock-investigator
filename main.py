@@ -732,6 +732,27 @@ def inspect_schema():
     return {"schema": schema_map}
 
 
+def normalize_device_name(vendor: str, raw_name: str | None) -> str | None:
+    """Prefixes a raw device-model string with its brand, so every device
+    name stored/displayed anywhere in the pipeline is self-describing
+    (Brand + Model) without gallery/chart display code ever having to guess
+    a brand from a bare model string (which would need a model->brand
+    lookup table that grows forever as new device models show up).
+
+    Garmin's and Fitbit's APIs return model-only strings ("Instinct 2X
+    Solar", "Inspire 3") - the caller passes the known vendor because the
+    call site always structurally knows which API it just called. Polar's
+    FIT file_id.product_name already comes back brand-included ("Polar
+    Vantage V3"), so this is idempotent on an already-prefixed name
+    (case-insensitive startswith check) rather than double-prefixing it.
+    """
+    if not raw_name:
+        return raw_name
+    if raw_name.strip().lower().startswith(vendor.lower()):
+        return raw_name
+    return f"{vendor} {raw_name}"
+
+
 def list_polar_exercises(access_token: str, samples: bool = True) -> list[dict]:
     """Lists the logged-in Polar user's exercises via AccessLink's current
     non-transactional `GET /v3/exercises` endpoint.
@@ -788,12 +809,17 @@ def fetch_polar_exercise_samples(access_token: str, exercise_id: str) -> tuple[p
     tick - dropped, not filled, per this project's no-fill rule.
 
     The HR stream is picked out of the exercise's `samples` array by
-    matching sample-type == "HEARTRATE". Polar's own OpenAPI spec only
-    shows a placeholder numeric example ('1') for this field rather than
-    documenting the real string enum - "HEARTRATE" is confirmed instead
-    against a third-party reference client
-    (github.com/StuMason/polar-flow) that names it explicitly. Flagged
-    here in case a real API response ever disagrees.
+    matching sample_type == 0. Polar's published docs (both the swagger.yaml
+    and the human-readable appendix, checked 2026-07-24) describe a
+    hyphenated 'sample-type' key holding a string like "HEARTRATE" - but a
+    real live call against a Polar Beat-recorded exercise (device "Polar
+    BEAT", 2026-07-24) actually returned underscored keys (`sample_type`,
+    `recording_rate`) with `sample_type` as an integer (0 for the only
+    block present). Confirmed as heart rate by construction: it was the
+    exercise's only sample block, and its value range (65-159) exactly
+    matched that same exercise's own `heart_rate.maximum` (159) summary
+    field. Both the documented and the observed-live shapes are checked
+    here, in case a future exercise (or Polar's own API) uses either.
     """
     headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
     with httpx.Client(timeout=20.0) as client:
@@ -806,25 +832,56 @@ def fetch_polar_exercise_samples(access_token: str, exercise_id: str) -> tuple[p
         raise RuntimeError(f"Polar exercise API returned {response.status_code}: {response.text}")
 
     exercise = response.json()
-    device_name = exercise.get("device")
+    raw_device = exercise.get("device")
+    device_name = normalize_device_name("Polar", raw_device)
+    if raw_device and raw_device.strip().lower() == "polar beat":
+        # AccessLink's exercise resource never names the paired Bluetooth
+        # sensor (see this function's docstring) - only the recording app
+        # ("Polar BEAT", which has no HR sensor of its own). In this
+        # project's protocol, Polar Beat is only ever used paired to the
+        # H10 chest strap, confirmed as ground truth with the user
+        # (2026-07-24) rather than inferred from any API field - hardcoded
+        # here, not guessed.
+        device_name = "Polar H10"
     start_time = exercise.get("start_time")
+    utc_offset_minutes = exercise.get("start_time_utc_offset")
+
+    def _is_heart_rate_sample(s):
+        if "sample_type" in s:
+            return s.get("sample_type") == 0
+        return str(s.get("sample-type", "")).upper() in ("HEARTRATE", "0")
 
     hr_sample = next(
-        (s for s in exercise.get("samples", []) if str(s.get("sample-type", "")).upper() == "HEARTRATE"),
+        (s for s in exercise.get("samples", []) if _is_heart_rate_sample(s)),
         None,
     )
     if hr_sample is None or not start_time:
         return pd.DataFrame(), device_name
 
-    recording_rate = hr_sample.get("recording-rate") or 1
+    recording_rate = hr_sample.get("recording_rate") or hr_sample.get("recording-rate") or 1
     raw_values = str(hr_sample.get("data", "")).split(",")
 
+    # start_time is the exercise's local wall-clock time, not UTC - confirmed
+    # live (2026-07-24): a "10:03:12" start_time paired with a -420
+    # start_time_utc_offset (minutes) is 7 hours behind UTC, i.e. Pacific
+    # Daylight Time, matching when this run actually happened. Attaching
+    # that offset here (rather than leaving the timestamp naive) is load-
+    # bearing: main.merge_telemetry tz_converts every device's index to a
+    # shared zone, and a naive index gets tz_localize'd as if it were
+    # already in that zone - silently shifting Polar's samples by 7 hours
+    # against Garmin/Fitbit if this weren't attached first.
     base_time = pd.to_datetime(start_time)
+    if utc_offset_minutes is not None:
+        from datetime import timezone, timedelta
+        base_time = base_time.tz_localize(timezone(timedelta(minutes=utc_offset_minutes)))
     rows = []
     for i, raw_value in enumerate(raw_values):
         raw_value = raw_value.strip()
-        if raw_value == "" or raw_value.lower() == "null":
-            continue  # sensor offline for this tick - a real gap, never fabricated
+        # "" / "null" = sensor offline; "0" = chest strap not yet locked on
+        # (physiologically impossible mid-exercise) - both are real gaps,
+        # dropped rather than fabricated, per this project's no-fill rule.
+        if raw_value == "" or raw_value.lower() == "null" or raw_value == "0":
+            continue
         rows.append({
             "time": base_time + pd.Timedelta(seconds=i * recording_rate),
             "polar_hr": float(raw_value),
@@ -888,7 +945,7 @@ def parse_polar_fit_file(file_path: str) -> tuple[pd.DataFrame, str | None]:
     for msg in fitfile.get_messages("file_id"):
         product_name = msg.get_value("product_name")
         if product_name:
-            device_name = product_name
+            device_name = normalize_device_name("Polar", product_name)
             break
 
     rows = []
@@ -954,7 +1011,7 @@ def fetch_fitbit_hr_df(client: httpx.Client, headers: dict, start_iso: str, end_
             continue
 
         if device_name is None:
-            device_name = src.get("device", {}).get("displayName")
+            device_name = normalize_device_name("Fitbit", src.get("device", {}).get("displayName"))
 
         t = dp.get("heartRate", {}).get("sampleTime", {}).get("physicalTime")
         bpm = dp.get("heartRate", {}).get("beatsPerMinute")
@@ -969,12 +1026,22 @@ def fetch_fitbit_hr_df(client: httpx.Client, headers: dict, start_iso: str, end_
     return fitbit_df, device_name
 
 
-def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_id, garmin_device_name: str | None = None, fitbit_device_name: str | None = None) -> dict:
+def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_id, garmin_device_name: str | None = None, fitbit_device_name: str | None = None, polar_df: pd.DataFrame | None = None, polar_device_name: str | None = None) -> dict:
     """Time-aligns Garmin and Fitbit telemetry (outer join, no filling - gaps
     are real signal) and returns the final JSON-serializable payload shape.
+
+    polar_df is optional (a single 'polar_hr' column, same shape as
+    fitbit_df) for runs where a Polar H10 chest strap was worn alongside
+    Garmin+Fitbit as a silver-standard reference device - see
+    fetch_polar_exercise_samples. Omitted (None/empty) for every run
+    published before this reference-device capability existed; those
+    simply get an all-null 'polar_hr' column, same as fitbit_hr already
+    does for a Garmin-only window.
     """
     if fitbit_df.empty and garmin_df.empty:
         raise RuntimeError("No data found for both providers.")
+    if polar_df is None:
+        polar_df = pd.DataFrame()
 
     # Handle timezones safely
     if not garmin_df.empty:
@@ -990,14 +1057,22 @@ def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_i
         else:
             fitbit_df.index = fitbit_df.index.tz_convert(target_tz)
 
-    # 1. Outer join (no filling). A completely empty fitbit_df (zero rows,
-    # zero columns - no Fitbit data at all in this window) joins in without
-    # ever creating a 'fitbit_hr' column, so guarantee it exists (as nulls,
-    # not fabricated values - this is still "gaps are signal", just gapped
-    # for the entire run rather than part of it).
-    merged_df = garmin_df.join(fitbit_df, how='outer')
+    if not polar_df.empty:
+        if polar_df.index.tz is None:
+            polar_df.index = polar_df.index.tz_localize(target_tz)
+        else:
+            polar_df.index = polar_df.index.tz_convert(target_tz)
+
+    # 1. Outer join (no filling). A completely empty fitbit_df/polar_df
+    # (zero rows, zero columns - no data at all in this window) joins in
+    # without ever creating its HR column, so guarantee both exist (as
+    # nulls, not fabricated values - this is still "gaps are signal", just
+    # gapped for the entire run rather than part of it).
+    merged_df = garmin_df.join(fitbit_df, how='outer').join(polar_df, how='outer')
     if 'fitbit_hr' not in merged_df.columns:
         merged_df['fitbit_hr'] = None
+    if 'polar_hr' not in merged_df.columns:
+        merged_df['polar_hr'] = None
 
     # 2. Localize time
     if merged_df.index.tz is not None:
@@ -1018,6 +1093,7 @@ def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_i
         "time": merged_df['time'].tolist(),
         "garmin_hr": merged_df['garmin_hr'].tolist(),
         "fitbit_hr": merged_df['fitbit_hr'].tolist(),
+        "polar_hr": merged_df['polar_hr'].tolist(),
         "cadence_spm": merged_df['cadence_spm'].tolist(),
         "speed_mps": merged_df['speed_mps'].tolist(),
         "elevation_m": merged_df['elevation_m'].tolist() if 'elevation_m' in merged_df.columns else [],
@@ -1027,6 +1103,7 @@ def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_i
         "grade_adjusted_speed_mps": merged_df['grade_adjusted_speed_mps'].tolist() if 'grade_adjusted_speed_mps' in merged_df.columns else [],
         "garmin_device_name": garmin_device_name,
         "fitbit_device_name": fitbit_device_name,
+        "polar_device_name": polar_device_name,
     }
 
 
@@ -1109,7 +1186,10 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
             details = garmin_client.get_activity_details(activities[0]['activityId'])
             device_id = str(activities[0].get('deviceId'))
             devices = garmin_client.get_devices()
-            device_map = {str(d.get('deviceId')): d.get('displayName') or d.get('productDisplayName') for d in devices}
+            device_map = {
+                str(d.get('deviceId')): normalize_device_name('Garmin', d.get('displayName') or d.get('productDisplayName'))
+                for d in devices
+            }
             garmin_device_name = device_map.get(device_id)
             if use_garmin_cache:
                 with open(cache_file, "w") as f:

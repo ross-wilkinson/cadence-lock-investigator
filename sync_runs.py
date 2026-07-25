@@ -31,7 +31,7 @@ import publish_run
 # permanently shadowed the moment `def main(...)` is defined below (both
 # bind the same global name), silently breaking every main.xxx call in this
 # file, not just the CLI.
-from main import enrich_with_weather, fetch_fitbit_hr_df, merge_telemetry, parse_garmin_metrics, refresh_google_token
+from main import enrich_with_weather, fetch_fitbit_hr_df, merge_telemetry, normalize_device_name, parse_garmin_metrics, refresh_google_token
 
 
 CACHE_DIR = ".sync_cache"
@@ -206,7 +206,10 @@ def build_garmin_device_map(garmin_client) -> dict:
     same id as an int (activity summaries) or a string (get_activity).
     """
     devices = garmin_client.get_devices()
-    return {str(d.get('deviceId')): d.get('displayName') or d.get('productDisplayName') for d in devices}
+    return {
+        str(d.get('deviceId')): normalize_device_name('Garmin', d.get('displayName') or d.get('productDisplayName'))
+        for d in devices
+    }
 
 
 def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: dict, garmin_activity: dict, google_session: dict, cache_dir: str, garmin_device_map: dict) -> dict:

@@ -104,43 +104,51 @@ def _interpolate_gaps(hr_series: list) -> list:
     return filled
 
 
-def paired_trimp(time_offsets_seconds: list, garmin_hr: list, fitbit_hr: list, hr_max: float):
-    """Fair TRIMP comparison between two devices with different real
+def paired_trimp(time_offsets_seconds: list, hr_series_by_device: dict, hr_max: float):
+    """Fair TRIMP comparison across two or more devices with different real
     sampling patterns.
 
-    Intersects both devices' valid-data windows (so neither device's
-    lead-in/tail time with no counterpart inflates its total for free).
-    Within that window, both devices are interpolated (see
-    _interpolate_gaps) onto the exact same instants, so the two totals are
-    built from the exact same number of samples at the exact same times -
-    not an estimated per-device time weight applied to two differently-
-    gapped sample sets.
+    hr_series_by_device maps a device key (e.g. "garmin", "fitbit", "polar")
+    to its HR series - any device whose series is entirely None (e.g. the
+    "polar" key on a run with no reference device worn) is dropped before
+    comparing, so old two-device runs and new three-device runs share the
+    same function without a separate code path.
 
-    Returns {"garmin": total_trimp, "fitbit": total_trimp}, or None if no
-    fair comparison is possible (a device has zero/one valid sample
-    anywhere, or the two valid windows don't overlap) - callers treat this
+    Intersects every remaining device's valid-data window (so no device's
+    lead-in/tail time with no counterpart inflates its total for free).
+    Within that window, every device is interpolated (see
+    _interpolate_gaps) onto the exact same instants, so all totals are
+    built from the exact same number of samples at the exact same times -
+    not an estimated per-device time weight applied to differently-gapped
+    sample sets.
+
+    Returns {device_key: total_trimp, ...} for every device with data, or
+    None if no fair comparison is possible (fewer than two devices have any
+    valid sample, or the valid windows don't overlap) - callers treat this
     the same as "no hr_max resolved".
     """
-    garmin_valid = [i for i, v in enumerate(garmin_hr) if v is not None]
-    fitbit_valid = [i for i, v in enumerate(fitbit_hr) if v is not None]
-    if not garmin_valid or not fitbit_valid:
+    valid_idx_by_device = {
+        device: [i for i, v in enumerate(series) if v is not None]
+        for device, series in hr_series_by_device.items()
+    }
+    valid_idx_by_device = {device: idx for device, idx in valid_idx_by_device.items() if idx}
+    if len(valid_idx_by_device) < 2:
         return None
 
-    start_idx = max(garmin_valid[0], fitbit_valid[0])
-    end_idx = min(garmin_valid[-1], fitbit_valid[-1])
+    start_idx = max(idx[0] for idx in valid_idx_by_device.values())
+    end_idx = min(idx[-1] for idx in valid_idx_by_device.values())
     if start_idx >= end_idx:
         return None
 
     window_offsets = time_offsets_seconds[start_idx:end_idx + 1]
     sample_seconds = (window_offsets[-1] - window_offsets[0]) / (len(window_offsets) - 1)
 
-    garmin_filled = _interpolate_gaps(garmin_hr[start_idx:end_idx + 1])
-    fitbit_filled = _interpolate_gaps(fitbit_hr[start_idx:end_idx + 1])
+    result = {}
+    for device in valid_idx_by_device:
+        filled = _interpolate_gaps(hr_series_by_device[device][start_idx:end_idx + 1])
+        result[device] = stagno_trimp(filled, hr_max, sample_seconds=sample_seconds)
 
-    garmin_trimp = stagno_trimp(garmin_filled, hr_max, sample_seconds=sample_seconds)
-    fitbit_trimp = stagno_trimp(fitbit_filled, hr_max, sample_seconds=sample_seconds)
-
-    return {"garmin": garmin_trimp, "fitbit": fitbit_trimp}
+    return result
 
 
 def median_sample_rate_hz(time_offsets_seconds: list, hr_series: list):
@@ -273,3 +281,298 @@ def worst_pace_divergence(pace_hr_distribution: dict) -> dict | None:
         return None
 
     return {"bucket": worst_bucket, "gap_bpm": round(worst_gap, 1)}
+
+
+# Objective #3, Phase 2: per-second cadence-lock scoring.
+#
+# This is the "production" form of phase1_eda/eda.py's validated design -
+# same harmonic grid, same gating constants (WIN=40/STEP=5/MIN_VALID=8,
+# CAD_MIN=60/SPEED_MIN=0.5, MAE_LOCK=5.0/FRAC_TOL=6.0), same directional
+# (not merely magnitude) separation requirement - not a fresh redesign.
+# phase1_eda/REPORT.md ran this exact design across all 31 published runs
+# before it landed here, and found: naive HR-near-cadence proximity fires
+# almost everywhere (including all three negative-flagged runs) and is
+# uninformative alone; the real signature only separates out once proximity
+# is combined with *sustained* tracking over a window AND the on-harmonic
+# device reading *materially higher* than the other device's contemporaneous
+# reading (genuine lock inflates HR upward onto a harmonic; a device
+# reading LOW near a sub-harmonic, e.g. k=1/2 at an easy pace, is
+# overwhelmingly a real low HR coinciding with cadence/2, not lock -
+# REPORT.md Section 4). Magnitude-only separation (as opposed to signed,
+# directional separation) was tried and rejected for exactly this reason.
+#
+# The thresholds below (MAE_LOCK_BPM, DIRECTIONAL_GAP_MIN_BPM, etc.) are the
+# same values the EDA validated against real data, carried over deliberately
+# rather than re-guessed - but they are still PROVISIONAL. Per
+# CADENCE_LOCK_DETECTOR_PROPOSAL.md Section 5/7.6, real thresholds get set
+# against Phase 3's manual labels in Phase 4; picking them by eye against 31
+# runs with no held-out check is the same free-parameter curve-fitting this
+# project already rejected once (see stagno_trimp's docstring / the AZM
+# story above). Treat this as Phase 2's deliverable - a per-second SCORE,
+# not a finished decision boundary.
+
+# 0.25..4.0 in 0.25 steps, plus rational thirds - phase1_eda/REPORT.md
+# Section 2 found k=1.5 and k=1.333 (4/3) as real, recurring harmonics
+# (5+ runs, not a one-off), not just the {1/2, 1, 2} the original proposal
+# guessed at before running the EDA. Do not narrow this back down without
+# re-running the EDA against the full dataset first.
+CADENCE_LOCK_K_GRID = sorted(set(
+    [round(0.25 * i, 4) for i in range(1, 17)]
+    + [round(1 / 3, 4), round(2 / 3, 4), round(4 / 3, 4), round(5 / 3, 4), round(7 / 3, 4)]
+))
+
+
+def _cadence_lock_window_scan(
+    hr: list,
+    other_hr: list,
+    cadence_spm: list,
+    speed_mps: list,
+    window_seconds: int = 40,
+    step_seconds: int = 5,
+    min_valid_samples: int = 8,
+    cadence_min_spm: float = 60.0,
+    speed_min_mps: float = 0.5,
+    frac_within_tol_bpm: float = 6.0,
+) -> list:
+    """Slides a window over one device's HR series and fits the best cadence
+    harmonic in each - raw fit statistics only, no lock/no-lock decision
+    yet (that's _merge_loose_stretches + _score_stretch). Mirrors
+    phase1_eda/eda.py's window_scan() exactly, so Phase 2 reproduces what
+    was actually validated across all 31 runs rather than a fresh guess at
+    the same idea.
+
+    A window is skipped entirely (not included in the returned list) unless
+    it has >= min_valid_samples instants with both a real HR value and a
+    *gated* cadence reading (cadence_spm >= cadence_min_spm AND
+    speed_mps >= speed_min_mps together - corroborating real mechanical
+    motion, since cadence_spm alone can be a masked Garmin micro-dropout
+    reported as 0.0 rather than genuine standing; see parse_garmin_metrics).
+
+    Returns a list of dicts: start, end, n_valid, k (best-fitting harmonic
+    from CADENCE_LOCK_K_GRID by mean absolute error), mae, frac_within
+    (fraction of samples within frac_within_tol_bpm of k*cadence),
+    hr_mean, other_mean (None if the other device had zero valid samples
+    anywhere in the window - "no data to compare against", not a zero gap).
+    """
+    n = len(hr)
+    windows = []
+    for start in range(0, max(1, n - window_seconds + 1), step_seconds):
+        end = min(start + window_seconds, n)
+        idx = [
+            i for i in range(start, end)
+            if hr[i] is not None
+            and cadence_spm[i] is not None and speed_mps[i] is not None
+            and cadence_spm[i] >= cadence_min_spm and speed_mps[i] >= speed_min_mps
+        ]
+        if len(idx) < min_valid_samples:
+            continue
+
+        h = [hr[i] for i in idx]
+        c = [cadence_spm[i] for i in idx]
+
+        best_k, best_mae = None, float("inf")
+        for k in CADENCE_LOCK_K_GRID:
+            mae = sum(abs(h[j] - k * c[j]) for j in range(len(idx))) / len(idx)
+            if mae < best_mae:
+                best_mae, best_k = mae, k
+        frac_within = sum(1 for j in range(len(idx)) if abs(h[j] - best_k * c[j]) <= frac_within_tol_bpm) / len(idx)
+
+        other_valid = [other_hr[i] for i in range(start, end) if other_hr[i] is not None]
+        other_mean = sum(other_valid) / len(other_valid) if other_valid else None
+        hr_mean = sum(h) / len(h)
+
+        windows.append({
+            "start": start, "end": end, "n_valid": len(idx),
+            "k": best_k, "mae": best_mae, "frac_within": frac_within,
+            "hr_mean": hr_mean, "other_mean": other_mean,
+        })
+    return windows
+
+
+def _merge_loose_stretches(windows: list, mae_lock_bpm: float = 5.0, frac_within_min: float = 0.6) -> list:
+    """Filters to the "loose" lock gate (tight-and-sustained-within-one-
+    window: mae <= mae_lock_bpm AND frac_within >= frac_within_min - no
+    plausibility check yet), then merges same-k loose-qualifying windows
+    into stretches wherever they overlap or touch in time.
+
+    This bridges gaps the way phase1_eda/eda.py's merge_stretches() does:
+    a stretch extends across windows whose time ranges overlap, not only
+    windows adjacent in the full window list - so one intervening
+    non-qualifying window doesn't necessarily break a stretch, since 40s
+    windows at a 5s step already overlap by 35s. Caught during
+    verification: an earlier draft of this code required strict list-
+    adjacency instead, which was measurably stricter than what the EDA
+    actually validated (produced far fewer locked seconds than
+    phase1_eda/REPORT.md's own per-run totals on the same real runs) - not
+    a safe conservative substitute, a different, unvalidated method.
+
+    Returns a list of {"k", "start", "end", "members": [window dicts]}.
+    """
+    loose = [w for w in windows if w["mae"] <= mae_lock_bpm and w["frac_within"] >= frac_within_min]
+    loose.sort(key=lambda w: w["start"])
+
+    stretches = []
+    cur = None
+    for w in loose:
+        if cur is not None and w["k"] == cur["k"] and w["start"] <= cur["end"]:
+            cur["end"] = max(cur["end"], w["end"])
+            cur["members"].append(w)
+        else:
+            if cur is not None:
+                stretches.append(cur)
+            cur = {"k": w["k"], "start": w["start"], "end": w["end"], "members": [w]}
+    if cur is not None:
+        stretches.append(cur)
+    return stretches
+
+
+def _score_stretch(
+    stretch: dict,
+    min_stretch_seconds: float = 45.0,
+    stretch_mae_lock_bpm: float = 4.5,
+    directional_gap_min_bpm: float = 25.0,
+    gap_saturation_bpm: float = 50.0,
+) -> tuple:
+    """Applies the "strict" + "directional" tiers to one merged stretch -
+    phase1_eda/REPORT.md Section 4's central finding that proximity alone
+    is ~80% coincidence, and only genuinely separates from coincidence once
+    BOTH a minimum sustained duration AND a materially-higher-than-the-
+    other-device reading are required together, not either alone.
+
+    A stretch qualifies only if ALL of:
+      - span (end - start) >= min_stretch_seconds. A single isolated 40s
+        window (the window_seconds default) falls short of this by
+        design - one window is not sustained evidence by itself.
+      - mean MAE across member windows <= stretch_mae_lock_bpm. Tighter
+        than the 5.0 mae_lock_bpm used to decide which windows merge in
+        the first place - the two are deliberately different thresholds
+        in the EDA (5.0 gates window inclusion, 4.5 gates the merged
+        stretch), not the same number checked twice. Caught during
+        verification: an earlier draft used only the looser 5.0 at the
+        merged level and let a real, dur>=45, mae_mean=4.76 stretch on a
+        negative-flagged run through, where phase1_eda/REPORT.md's own
+        pipeline (which does apply the tighter 4.5) correctly excluded it.
+      - the stretch's mean HR reads >= directional_gap_min_bpm higher than
+        the other device's mean HR over the same members (only upward
+        deviation onto a harmonic counts as lock evidence; a device
+        reading LOW near a sub-harmonic, e.g. k=1/2 at an easy pace, is
+        overwhelmingly a real low HR coinciding with cadence/2, not lock -
+        REPORT.md Section 4). Default 25.0: phase1_eda/eda.py's
+        "directional" filter is layered ON TOP of its "strict" filter
+        (magnitude gap >= 25, either sign), then adds a same-sign gap >= 15
+        check - since magnitude >= 25 already implies signed >= 25 on the
+        positive branch, the real combined effective minimum is 25, not
+        15. A stretch with no member window carrying any valid
+        other-device reading has nothing to compare against and is
+        rejected outright (mean_mae is still returned for diagnostics).
+
+    Returns (qualifies: bool, score: float in [0,1], mean_mae: float,
+    gap_bpm: float | None). score is 0.0 for a non-qualifying stretch, else
+    scaled linearly from directional_gap_min_bpm (0.0) to
+    gap_saturation_bpm (1.0) - how far past the validated minimum
+    separation this stretch sits, never used to let a *non*-qualifying
+    stretch score above 0 (the gates above are gates, not inputs blended
+    with everything else).
+    """
+    members = stretch["members"]
+    dur = stretch["end"] - stretch["start"]
+    mean_mae = sum(w["mae"] for w in members) / len(members)
+
+    other_means = [w["other_mean"] for w in members if w["other_mean"] is not None]
+    if not other_means:
+        return False, 0.0, mean_mae, None
+    hr_means = [w["hr_mean"] for w in members]
+    gap_bpm = (sum(hr_means) / len(hr_means)) - (sum(other_means) / len(other_means))
+
+    qualifies = dur >= min_stretch_seconds and mean_mae <= stretch_mae_lock_bpm and gap_bpm >= directional_gap_min_bpm
+    score = (
+        min(1.0, max(0.0, (gap_bpm - directional_gap_min_bpm) / (gap_saturation_bpm - directional_gap_min_bpm)))
+        if qualifies else 0.0
+    )
+    return qualifies, score, mean_mae, gap_bpm
+
+
+def cadence_lock_scan(
+    hr: list,
+    other_hr: list,
+    cadence_spm: list,
+    speed_mps: list,
+    window_kwargs: dict = None,
+    merge_kwargs: dict = None,
+    score_kwargs: dict = None,
+) -> list:
+    """Objective #3, Phase 2: per-second cadence-lock score for ONE device,
+    using the OTHER device's contemporaneous HR as a local plausibility
+    reference. Call this twice per run (swap hr/other_hr) to get both
+    devices' independent score streams -
+    CADENCE_LOCK_DETECTOR_PROPOSAL.md Section 1 is explicit that lock must
+    be scored per-device, not per-instant-global: positive_both runs show
+    the two devices' suspected-lock windows occurring at *different*
+    stretches of the run, not concurrently (phase1_eda/REPORT.md Section 3,
+    the one run with both devices firing had exactly 0s of overlap) - so a
+    single shared per-instant label would conflate two independent claims.
+
+    Pipeline: _cadence_lock_window_scan (raw per-window harmonic fits) ->
+    _merge_loose_stretches (bridge overlapping same-k windows into
+    candidate stretches) -> _score_stretch (strict+directional gates,
+    applied to each merged stretch) -> scatter each qualifying stretch's
+    score across every second it spans, via max where stretches of
+    different k overlap in time for the same device (rare, but not
+    structurally impossible). Each stage takes its own kwargs dict so Phase
+    4 can retune one without touching the others - see each function's
+    docstring for what it owns.
+
+    Returns a list the same length as hr. Each element is either:
+      - None: this instant can't be assessed at all - hr[i], cadence_spm[i],
+        or speed_mps[i] is missing, or no window anywhere covered it with
+        enough valid samples. This is "no data", never "not locked" - the
+        no-fill rule applies to this derived series exactly as it does to
+        the stored telemetry.
+      - a dict {"score": float in [0,1] (0.0 means assessed, no qualifying
+        stretch found here), "k": harmonic, "mae": mean bpm error,
+        "gap_bpm": signed separation from the other device} - k/mae/gap_bpm
+        are None when score is 0.0 (nothing to attribute a "why" to), and
+        otherwise identify the specific qualifying stretch this second's
+        score came from, so a firing is always traceable to one concrete,
+        explainable stretch rather than an opaque blend of several.
+
+    All thresholds/window sizing are the EDA's own validated values,
+    carried over deliberately rather than re-guessed - but still
+    PROVISIONAL. Per CADENCE_LOCK_DETECTOR_PROPOSAL.md Section 5/7.6, real
+    thresholds get set against Phase 3's manual labels in Phase 4; picking
+    them by eye with no held-out check is the free-parameter curve-fitting
+    this project already rejected once (see stagno_trimp's docstring).
+    """
+    window_kwargs = window_kwargs or {}
+    merge_kwargs = merge_kwargs or {}
+    score_kwargs = score_kwargs or {}
+
+    n = len(hr)
+    windows = _cadence_lock_window_scan(hr, other_hr, cadence_spm, speed_mps, **window_kwargs)
+
+    covered = [False] * n
+    for w in windows:
+        for i in range(w["start"], w["end"]):
+            covered[i] = True
+
+    stretches = _merge_loose_stretches(windows, **merge_kwargs)
+    best_score = [0.0] * n
+    best_meta = [None] * n
+    for stretch in stretches:
+        qualifies, score, mean_mae, gap_bpm = _score_stretch(stretch, **score_kwargs)
+        if not qualifies:
+            continue
+        for i in range(stretch["start"], stretch["end"]):
+            if score >= best_score[i]:
+                best_score[i] = score
+                best_meta[i] = {"k": stretch["k"], "mae": round(mean_mae, 2), "gap_bpm": round(gap_bpm, 1)}
+
+    result = []
+    for i in range(n):
+        assessable = hr[i] is not None and cadence_spm[i] is not None and speed_mps[i] is not None and covered[i]
+        if not assessable:
+            result.append(None)
+            continue
+        meta = best_meta[i] or {"k": None, "mae": None, "gap_bpm": None}
+        result.append({"score": best_score[i], **meta})
+    return result

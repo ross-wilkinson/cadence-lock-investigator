@@ -18,10 +18,11 @@
                 --gridline:        #e1e0d9;
                 --baseline:        #c3c2b7;
                 --border:          rgba(11,11,11,0.10);
-                --series-garmin:   #984ea3;
-                --series-fitbit:   #4daf4a;
+                --series-garmin:   #7570b3;
+                --series-fitbit:   #1b9e77;
                 --series-cadence:  #404040;
                 --series-pace:     #377eb8;
+                --series-polar:    #d95f02;
             }
             @media (prefers-color-scheme: dark) {
                 :root {
@@ -34,10 +35,11 @@
                     --gridline:        #2c2c2a;
                     --baseline:        #383835;
                     --border:          rgba(255,255,255,0.10);
-                    --series-garmin:   #984ea3;
-                    --series-fitbit:   #4daf4a;
+                    --series-garmin:   #7570b3;
+                    --series-fitbit:   #1b9e77;
                     --series-cadence:  #f7f7f7;
                     --series-pace:     #377eb8;
+                    --series-polar:    #d95f02;
                 }
             }
 
@@ -134,7 +136,7 @@
         <div id="loader">Fetching and aligning telemetry&hellip;</div>
         <div id="graph"></div>
         <div id="tableWrap"><table>
-            <thead><tr><th>Time</th><th id="thPrimaryHr">Garmin HR</th><th id="thFitbitHr">Fitbit HR</th><th id="thCadence">Garmin Cadence (SPM)</th></tr></thead>
+            <thead><tr><th>Time</th><th id="thPrimaryHr">Garmin HR</th><th id="thFitbitHr">Fitbit HR</th><th id="thCadence">Garmin Cadence (SPM)</th><th id="thPolarHr" style="display:none;">Polar HR</th></tr></thead>
             <tbody id="tableBody"></tbody>
         </table></div>
 
@@ -154,7 +156,8 @@
                     garmin: cssVar('--series-garmin'),
                     fitbit: cssVar('--series-fitbit'),
                     cadence: cssVar('--series-cadence'),
-                    pace: cssVar('--series-pace')
+                    pace: cssVar('--series-pace'),
+                    polar: cssVar('--series-polar')
                 };
             }
 
@@ -200,6 +203,10 @@
                 return (speedMps || []).map(v => (v === null || v === undefined || v <= 0) ? null : (1000 / v) / 60);
             }
 
+            function hasData(series) {
+                return Array.isArray(series) && series.some(v => v !== null && v !== undefined);
+            }
+
             function buildTraces(data, t) {
                 // garmin_hr/cadence_spm/speed_mps are the "primary device" slots -
                 // populated by whichever device supplied both HR and cadence/pace
@@ -209,7 +216,8 @@
                 // rather than hardcoding "Garmin".
                 const primaryName = data.garmin_device_name || 'Garmin';
                 const fitbitName = data.fitbit_device_name || 'Fitbit';
-                return [
+                const polarName = data.polar_device_name || 'Polar';
+                const traces = [
                     {
                         x: data.time, y: data.garmin_hr, name: `${primaryName} HR`,
                         mode: 'lines+markers',
@@ -240,6 +248,18 @@
                         yaxis: 'y2',
                     }
                 ];
+                // Polar H10 reference-device trace - only present on runs where one
+                // was worn alongside Garmin/Fitbit (see publish_reference_run.py).
+                if (hasData(data.polar_hr)) {
+                    traces.push({
+                        x: data.time, y: data.polar_hr, name: `${polarName} HR (reference)`,
+                        mode: 'lines+markers',
+                        line: { color: t.polar, width: 1 },
+                        marker: { size: 3 },
+                        connectgaps: false
+                    });
+                }
+                return traces;
             }
 
             let latestData = null;
@@ -252,9 +272,11 @@
             }
 
             function buildTable(data) {
+                const showPolar = hasData(data.polar_hr);
                 const rows = data.time.map((time, i) => {
                     const fmt = (v) => (v === null || v === undefined) ? '&mdash;' : v;
-                    return `<tr><td>${time}</td><td>${fmt(data.garmin_hr[i])}</td><td>${fmt(data.fitbit_hr[i])}</td><td>${fmt(data.cadence_spm[i])}</td></tr>`;
+                    const polarCell = showPolar ? `<td>${fmt(data.polar_hr[i])}</td>` : '';
+                    return `<tr><td>${time}</td><td>${fmt(data.garmin_hr[i])}</td><td>${fmt(data.fitbit_hr[i])}</td><td>${fmt(data.cadence_spm[i])}</td>${polarCell}</tr>`;
                 }).join('');
                 document.getElementById('tableBody').innerHTML = rows;
             }
@@ -306,10 +328,17 @@
 
                         const primaryName = data.garmin_device_name || 'Garmin';
                         const fitbitName = data.fitbit_device_name || 'Fitbit';
+                        const polarName = data.polar_device_name || 'Polar';
+                        const polarPresent = hasData(data.polar_hr);
                         document.getElementById('thPrimaryHr').textContent = `${primaryName} HR`;
                         document.getElementById('thFitbitHr').textContent = `${fitbitName} HR`;
                         document.getElementById('thCadence').textContent = `${primaryName} Cadence (SPM)`;
-                        document.getElementById('subtitle').textContent = `${primaryName} vs. ${fitbitName} heart rate against stride cadence and pace.`;
+                        const thPolar = document.getElementById('thPolarHr');
+                        thPolar.textContent = `${polarName} HR`;
+                        thPolar.style.display = polarPresent ? '' : 'none';
+                        document.getElementById('subtitle').textContent = polarPresent
+                            ? `${primaryName} vs. ${fitbitName} heart rate against stride cadence and pace, with ${polarName} as the reference device.`
+                            : `${primaryName} vs. ${fitbitName} heart rate against stride cadence and pace.`;
 
                         const firstTimestamp = Array.isArray(data.time) ? data.time[0] : null;
                         const datePart = typeof firstTimestamp === 'string' ? firstTimestamp.slice(0, 10) : null;

@@ -17,9 +17,10 @@
                 --gridline:        #e1e0d9;
                 --baseline:        #c3c2b7;
                 --border:          rgba(11,11,11,0.10);
-                --series-garmin:   #7b3294;
-                --series-fitbit:   #008837;
+                --series-garmin:   #7570b3;
+                --series-fitbit:   #1b9e77;
                 --series-cadence:  #404040;
+                --series-polar:    #d95f02;
                 --badge-positive:  #ff7f00;
                 --badge-negative:  #4daf4a;
             }
@@ -34,9 +35,10 @@
                     --gridline:        #2c2c2a;
                     --baseline:        #383835;
                     --border:          rgba(255,255,255,0.10);
-                    --series-garmin:   #7b3294;
-                    --series-fitbit:   #008837;
+                    --series-garmin:   #7570b3;
+                    --series-fitbit:   #1b9e77;
                     --series-cadence:  #f7f7f7;
+                    --series-polar:    #d95f02;
                     --badge-positive:  #ff7f00;
                     --badge-negative:  #4daf4a;
                 }
@@ -151,6 +153,18 @@
                 background: transparent;
                 color: var(--text-muted);
                 border: 1px dashed var(--text-muted);
+            }
+            .badge-reference {
+                background: transparent;
+                color: var(--series-polar);
+                border: 1px solid var(--series-polar);
+            }
+
+            .runCard .runBadges {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 6px;
             }
 
             #emptyState {
@@ -290,9 +304,14 @@
                 return name || '—';
             }
 
-            function formatTrimp(v) {
+            function formatTrimp(v, diffToPolar) {
                 if (v === null || v === undefined || isNaN(v)) return '—';
-                return `${v.toFixed(1)} TRIMP`;
+                let label = `${v.toFixed(1)} TRIMP`;
+                if (diffToPolar !== null && diffToPolar !== undefined && !isNaN(diffToPolar)) {
+                    const sign = diffToPolar >= 0 ? '+' : '−';
+                    label += ` (${sign}${Math.abs(diffToPolar).toFixed(1)})`;
+                }
+                return label;
             }
 
             function trimpDifferenceLabel(diff) {
@@ -351,6 +370,16 @@
                 return span;
             }
 
+            // Second, independent badge - a run can be both e.g. "unreviewed"
+            // (cadence-lock verdict) AND a reference run (protocol/device-mix
+            // category), so this is additive to badgeFor(), not a replacement.
+            function referenceBadge() {
+                const span = document.createElement('span');
+                span.className = 'badge badge-reference';
+                span.appendChild(document.createTextNode('3-Way · H10 Reference'));
+                return span;
+            }
+
             function buildStat(label, value) {
                 const wrap = document.createElement('div');
                 wrap.className = 'runStat';
@@ -389,18 +418,38 @@
 
                 const stats = document.createElement('div');
                 stats.className = 'runStats';
-                // No hardcoded "Garmin" prefix: this slot is the "primary
-                // device" (HR+cadence+pace), normally Garmin but sometimes
-                // Polar for a manually-published FIT run (see
-                // publish_polar_run.py) - the device name string alone is
-                // always accurate, unlike a brand prefix would be.
-                stats.appendChild(buildStat(formatDeviceName(run.garmin_device_name), formatTrimp(run.total_trimp_garmin)));
-                stats.appendChild(buildStat(`Fitbit ${formatDeviceName(run.fitbit_device_name)}`, formatTrimp(run.total_trimp_fitbit)));
-                stats.appendChild(buildStat('TRIMP Difference', trimpDifferenceStatValue(run)));
+                // No hardcoded brand prefix on either side: device names are
+                // normalized to "Brand Model" at ingestion time now (see
+                // main.normalize_device_name), not guessed here - this slot
+                // is normally Garmin but sometimes Polar for a manually-
+                // published FIT run (see publish_polar_run.py), and a
+                // hardcoded "Fitbit" prefix here would double up on top of
+                // an already-normalized name.
+                const hasPolarReference = run.total_trimp_polar !== null && run.total_trimp_polar !== undefined;
+                // With a Polar H10 reference present, the meaningful comparison
+                // is each wrist device against the reference, not against each
+                // other - shown inline as "(+1.1)" next to that device's own
+                // TRIMP rather than as a separate stat tile. Without a
+                // reference device, fall back to the original garmin-vs-fitbit
+                // difference tile (neither is a presumed ground truth there).
+                stats.appendChild(buildStat(formatDeviceName(run.garmin_device_name), formatTrimp(run.total_trimp_garmin, hasPolarReference ? run.trimp_difference_garmin_polar : null)));
+                stats.appendChild(buildStat(formatDeviceName(run.fitbit_device_name), formatTrimp(run.total_trimp_fitbit, hasPolarReference ? run.trimp_difference_fitbit_polar : null)));
+                if (hasPolarReference) {
+                    stats.appendChild(buildStat(`${formatDeviceName(run.polar_device_name)} (reference)`, formatTrimp(run.total_trimp_polar)));
+                } else {
+                    stats.appendChild(buildStat('TRIMP Difference', trimpDifferenceStatValue(run)));
+                }
+
+                const badges = document.createElement('div');
+                badges.className = 'runBadges';
+                badges.appendChild(badgeFor(run.flag));
+                if (hasPolarReference) {
+                    badges.appendChild(referenceBadge());
+                }
 
                 card.appendChild(meta);
                 card.appendChild(stats);
-                card.appendChild(badgeFor(run.flag));
+                card.appendChild(badges);
 
                 return card;
             }

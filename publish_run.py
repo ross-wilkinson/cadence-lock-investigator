@@ -68,12 +68,12 @@ def _get_refresh_token() -> str:
     )
 
 
-def compute_trimp_stats(time: list, garmin_hr: list, fitbit_hr: list) -> dict:
+def compute_trimp_stats(time: list, garmin_hr: list, fitbit_hr: list, polar_hr: list | None = None) -> dict:
     """Objective #4: training-load overestimation via Stagno's Modified
     TRIMP (Stagno, Thatcher & van Someren, 2007) - only computed if an
     HRmax could be resolved (explicit HR_MAX, or 220-AGE fallback). Uses
     analysis.paired_trimp() for a fair, window-intersected comparison (real
-    internal gaps interpolated identically for both devices, so both totals
+    internal gaps interpolated identically for every device, so all totals
     come from the exact same number of samples at the exact same instants)
     rather than each device's naive whole-series total (which inflates
     whichever device has more raw samples, or a longer recording window, or
@@ -83,16 +83,29 @@ def compute_trimp_stats(time: list, garmin_hr: list, fitbit_hr: list) -> dict:
     Replaces the earlier Active Zone Minutes replication: AZM is Fitbit's
     own undisclosed algorithm, and matching it turned out to require
     arbitrary free parameters (bin width) with no principled way to choose
-    them. TRIMP is a published formula - both devices are scored by the same
+    them. TRIMP is a published formula - every device is scored by the same
     exact method, so there's nothing to reverse-engineer.
 
-    trimp_difference is a plain signed point difference (garmin - fitbit),
+    polar_hr is optional - a Polar H10 chest-strap reference stream, present
+    only on runs where one was worn (see main.merge_telemetry). When absent
+    (None, or entirely-null on older published runs) this behaves exactly
+    as the original two-device comparison.
+
+    trimp_difference is garmin - fitbit, a plain signed point difference,
     not a percentage: a % requires picking one device as the reference
-    denominator, and neither device's TRIMP is a confirmed ground truth.
+    denominator. Once a Polar H10 is present it IS the reference (silver-
+    standard chest strap), so trimp_difference_garmin_polar and
+    trimp_difference_fitbit_polar are also included - each is that device's
+    TRIMP minus Polar's, i.e. positive means that device overestimated
+    training load relative to the reference.
     """
+    empty = {
+        "total_trimp_garmin": None, "total_trimp_fitbit": None, "total_trimp_polar": None,
+        "trimp_difference": None, "trimp_difference_garmin_polar": None, "trimp_difference_fitbit_polar": None,
+    }
     hr_max = _resolve_hr_max()
     if hr_max is None:
-        return {"total_trimp_garmin": None, "total_trimp_fitbit": None, "trimp_difference": None}
+        return empty
 
     ts = pd.to_datetime(time, utc=True)
     # utc=True is load-bearing, not defensive-for-its-own-sake: a naive parse
@@ -100,30 +113,41 @@ def compute_trimp_stats(time: list, garmin_hr: list, fitbit_hr: list) -> dict:
     # transition (differing -07:00/-08:00 suffixes in the serialized time).
     offsets = list((ts - ts[0]).total_seconds())
 
-    result = analysis.paired_trimp(offsets, garmin_hr, fitbit_hr, hr_max)
-    if result is None:
-        return {"total_trimp_garmin": None, "total_trimp_fitbit": None, "trimp_difference": None}
+    series_by_device = {"garmin": garmin_hr, "fitbit": fitbit_hr}
+    if polar_hr is not None:
+        series_by_device["polar"] = polar_hr
 
-    total_trimp_garmin = round(result["garmin"], 2)
-    total_trimp_fitbit = round(result["fitbit"], 2)
+    result = analysis.paired_trimp(offsets, series_by_device, hr_max)
+    if result is None:
+        return empty
+
+    total_trimp_garmin = round(result["garmin"], 2) if "garmin" in result else None
+    total_trimp_fitbit = round(result["fitbit"], 2) if "fitbit" in result else None
+    total_trimp_polar = round(result["polar"], 2) if "polar" in result else None
+
     return {
         "total_trimp_garmin": total_trimp_garmin,
         "total_trimp_fitbit": total_trimp_fitbit,
-        "trimp_difference": round(total_trimp_garmin - total_trimp_fitbit, 1),
+        "total_trimp_polar": total_trimp_polar,
+        "trimp_difference": round(total_trimp_garmin - total_trimp_fitbit, 1) if total_trimp_garmin is not None and total_trimp_fitbit is not None else None,
+        "trimp_difference_garmin_polar": round(total_trimp_garmin - total_trimp_polar, 1) if total_trimp_garmin is not None and total_trimp_polar is not None else None,
+        "trimp_difference_fitbit_polar": round(total_trimp_fitbit - total_trimp_polar, 1) if total_trimp_fitbit is not None and total_trimp_polar is not None else None,
     }
 
 
 def _summarize(payload: dict, flag: str) -> dict:
     hr_values = [v for v in payload["garmin_hr"] if v is not None]
     fitbit_values = [v for v in payload["fitbit_hr"] if v is not None]
+    polar_values = [v for v in payload.get("polar_hr") or [] if v is not None]
     cadence_values = [v for v in payload["cadence_spm"] if v is not None and v > 0]
 
-    trimp_stats = compute_trimp_stats(payload["time"], payload["garmin_hr"], payload["fitbit_hr"])
+    trimp_stats = compute_trimp_stats(payload["time"], payload["garmin_hr"], payload["fitbit_hr"], payload.get("polar_hr"))
 
     ts = pd.to_datetime(payload["time"], utc=True)
     offsets = list((ts - ts[0]).total_seconds()) if len(ts) else []
     garmin_rate = analysis.median_sample_rate_hz(offsets, payload["garmin_hr"])
     fitbit_rate = analysis.median_sample_rate_hz(offsets, payload["fitbit_hr"])
+    polar_rate = analysis.median_sample_rate_hz(offsets, payload.get("polar_hr") or [])
 
     return {
         "id": payload["activity_id"],
@@ -132,12 +156,15 @@ def _summarize(payload: dict, flag: str) -> dict:
         "duration_seconds": len(payload["time"]),
         "avg_garmin_hr": round(sum(hr_values) / len(hr_values), 1) if hr_values else None,
         "avg_fitbit_hr": round(sum(fitbit_values) / len(fitbit_values), 1) if fitbit_values else None,
+        "avg_polar_hr": round(sum(polar_values) / len(polar_values), 1) if polar_values else None,
         "avg_cadence_spm": round(sum(cadence_values) / len(cadence_values), 1) if cadence_values else None,
         "flag": flag,
         "garmin_device_name": payload.get("garmin_device_name"),
         "fitbit_device_name": payload.get("fitbit_device_name"),
+        "polar_device_name": payload.get("polar_device_name"),
         "garmin_sample_rate_hz": round(garmin_rate, 3) if garmin_rate else None,
         "fitbit_sample_rate_hz": round(fitbit_rate, 3) if fitbit_rate else None,
+        "polar_sample_rate_hz": round(polar_rate, 3) if polar_rate else None,
         "temperature_c": payload.get("temperature_c"),
         "humidity_pct": payload.get("humidity_pct"),
         **trimp_stats,
@@ -161,7 +188,8 @@ def write_run(payload: dict, flag: str) -> dict:
     # HR_MAX, only speed_mps + an HR series, so this always populates.
     dist_garmin = analysis.hr_distribution_by_pace(payload["speed_mps"], payload["garmin_hr"])
     dist_fitbit = analysis.hr_distribution_by_pace(payload["speed_mps"], payload["fitbit_hr"])
-    payload["pace_hr_distribution"] = {"garmin": dist_garmin, "fitbit": dist_fitbit}
+    dist_polar = analysis.hr_distribution_by_pace(payload["speed_mps"], payload.get("polar_hr") or [])
+    payload["pace_hr_distribution"] = {"garmin": dist_garmin, "fitbit": dist_fitbit, "polar": dist_polar}
 
     run_path = os.path.join(DOCS_DATA_DIR, f"{activity_id}.json")
     with open(run_path, "w") as f:
