@@ -1,5 +1,26 @@
 [
   {
+    "id": 23718324572,
+    "start": "2026-07-24 10:17:16-07:00",
+    "end": "2026-07-24 10:53:39-07:00",
+    "duration_seconds": 2184,
+    "avg_garmin_hr": 136.6,
+    "avg_fitbit_hr": 136.7,
+    "avg_cadence_spm": 150.7,
+    "flag": "unreviewed",
+    "garmin_device_name": "Instinct 2X Solar",
+    "fitbit_device_name": "Inspire 3",
+    "garmin_sample_rate_hz": 0.5,
+    "fitbit_sample_rate_hz": 0.5,
+    "temperature_c": 16.3,
+    "humidity_pct": 80.0,
+    "total_trimp_garmin": 66.24,
+    "total_trimp_fitbit": 66.78,
+    "trimp_difference": -0.5,
+    "total_pace_buckets": 27,
+    "buckets_with_hr_divergence": 8
+  },
+  {
     "id": -1784858581,
     "start": "2026-07-23 19:03:01-07:00",
     "end": "2026-07-23 19:33:45-07:00",
