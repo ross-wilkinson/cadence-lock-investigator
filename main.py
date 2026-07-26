@@ -2,6 +2,7 @@ import json
 import numpy as np
 import os
 import pandas as pd
+import re
 import sqlite3
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -1061,7 +1062,57 @@ def fetch_fitbit_hr_df(client: httpx.Client, headers: dict, start_iso: str, end_
     return fitbit_df, device_name
 
 
-def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_id, garmin_device_name: str | None = None, fitbit_device_name: str | None = None, polar_df: pd.DataFrame | None = None, polar_device_name: str | None = None) -> dict:
+FITBIT_FIRMWARE_NOTES_URL = "https://support.google.com/googlehealth/answer/14236725?hl=en"
+
+
+def fetch_fitbit_firmware_version(fitbit_device_name: str | None) -> str | None:
+    """Best-effort *inferred* Fitbit firmware version, scraped from Google's
+    public per-model release-notes page - NOT a confirmed read of the actual
+    paired device's state. No Google/Fitbit API exposes real per-device
+    firmware (checked exhaustively 2026-07-26: the Google Health API's
+    dataPoints device object, its dedicated v4.users.pairedDevices resource,
+    the legacy Fitbit Web API's Get Devices endpoint, and Android Health
+    Connect's on-device metadata schema all top out at device model name -
+    see the project-device-firmware-capability memory). This instead assumes
+    the device stays on the latest published version (valid only if
+    auto-update is enabled, confirmed true for this project 2026-07-26) and
+    returns the newest "Version X.XX" listed under that model's section on
+    Google's support page.
+
+    Returns None on absolutely any failure (network error, model section not
+    found on the page, page structure changed) rather than raising -
+    firmware is enrichment, not something that should ever break a publish.
+    fitbit_device_name is expected pre-normalized with a "Fitbit " prefix
+    (see normalize_device_name); it's stripped here to match the page's bare
+    model headings (e.g. "Inspire 3").
+    """
+    if not fitbit_device_name:
+        return None
+    model = fitbit_device_name.removeprefix("Fitbit ").strip()
+    if not model:
+        return None
+
+    try:
+        response = httpx.get(
+            FITBIT_FIRMWARE_NOTES_URL, timeout=20.0, follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        response.raise_for_status()
+        html = response.text
+    except Exception:
+        return None
+
+    section_marker = f'name="exp">{model}</a>'
+    section_start = html.find(section_marker)
+    if section_start == -1:
+        return None
+    next_section = html.find('class="zippy-wrapper"', section_start + 1)
+    section_end = next_section if next_section != -1 else section_start + 5000
+    match = re.search(r'Version\s+([\d.]+)', html[section_start:section_end])
+    return match.group(1) if match else None
+
+
+def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_id, garmin_device_name: str | None = None, fitbit_device_name: str | None = None, polar_df: pd.DataFrame | None = None, polar_device_name: str | None = None, garmin_firmware_version: str | None = None, fitbit_firmware_version: str | None = None) -> dict:
     """Time-aligns Garmin and Fitbit telemetry (outer join, no filling - gaps
     are real signal) and returns the final JSON-serializable payload shape.
 
@@ -1072,6 +1123,11 @@ def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_i
     published before this reference-device capability existed; those
     simply get an all-null 'polar_hr' column, same as fitbit_hr already
     does for a Garmin-only window.
+
+    garmin_firmware_version/fitbit_firmware_version are optional per-run
+    footnote data (not surfaced in docs/data/index.json or any gallery/
+    dashboard UI - see fetch_fitbit_firmware_version's docstring for why
+    the Fitbit value is inferred, not confirmed, unlike Garmin's).
     """
     if fitbit_df.empty and garmin_df.empty:
         raise RuntimeError("No data found for both providers.")
@@ -1139,6 +1195,8 @@ def merge_telemetry(garmin_df: pd.DataFrame, fitbit_df: pd.DataFrame, activity_i
         "garmin_device_name": garmin_device_name,
         "fitbit_device_name": fitbit_device_name,
         "polar_device_name": polar_device_name,
+        "garmin_firmware_version": garmin_firmware_version,
+        "fitbit_firmware_version": fitbit_firmware_version,
     }
 
 
@@ -1183,8 +1241,10 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
     """
     fitbit_df = pd.DataFrame()
     fitbit_device_name = None
+    fitbit_firmware_version = None
     garmin_df = pd.DataFrame()
     garmin_device_name = None
+    garmin_firmware_version = None
     activity_id = None
     headers = {"Authorization": f"Bearer {google_access_token}"}
 
@@ -1201,6 +1261,7 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
             end_t = latest.get("exercise", {}).get("interval", {}).get("endTime")
 
             fitbit_df, fitbit_device_name = fetch_fitbit_hr_df(client, headers, start_t, end_t)
+            fitbit_firmware_version = fetch_fitbit_firmware_version(fitbit_device_name)
 
         print(f"DEBUG: Fitbit rows: {len(fitbit_df)}")
 
@@ -1222,10 +1283,14 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
             device_id = str(activities[0].get('deviceId'))
             devices = garmin_client.get_devices()
             device_map = {
-                str(d.get('deviceId')): normalize_device_name('Garmin', d.get('displayName') or d.get('productDisplayName'))
+                str(d.get('deviceId')): {
+                    "name": normalize_device_name('Garmin', d.get('displayName') or d.get('productDisplayName')),
+                    "firmware": d.get('currentFirmwareVersion'),
+                }
                 for d in devices
             }
-            garmin_device_name = device_map.get(device_id)
+            garmin_device_name = device_map.get(device_id, {}).get("name")
+            garmin_firmware_version = device_map.get(device_id, {}).get("firmware")
             if use_garmin_cache:
                 with open(cache_file, "w") as f:
                     json.dump(details, f)
@@ -1250,7 +1315,10 @@ def build_run_payload(google_access_token: str, use_garmin_cache: bool = True) -
         print(f"DEBUG: Zero cadence values: {zero_cadence}")
 
     # --- SECTION 3: Merge ---
-    payload = merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name)
+    payload = merge_telemetry(
+        garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name,
+        garmin_firmware_version=garmin_firmware_version, fitbit_firmware_version=fitbit_firmware_version,
+    )
 
     # --- SECTION 4: Weather enrichment (network I/O, kept out of merge_telemetry) ---
     return enrich_with_weather(payload)

@@ -44,6 +44,7 @@ def build_polar_run_payload(fit_path: str, google_access_token: str) -> dict:
     headers = {"Authorization": f"Bearer {google_access_token}"}
     with httpx.Client(timeout=20.0) as client:
         fitbit_df, fitbit_device_name = main.fetch_fitbit_hr_df(client, headers, start_iso, end_iso)
+    fitbit_firmware_version = main.fetch_fitbit_firmware_version(fitbit_device_name)
 
     # No Garmin activityId exists for a manual publish - synthesize one
     # guaranteed never to collide with a real (always-positive) Garmin id,
@@ -52,7 +53,10 @@ def build_polar_run_payload(fit_path: str, google_access_token: str) -> dict:
     # duplicating it.
     activity_id = -int(polar_df.index.min().timestamp())
 
-    payload = main.merge_telemetry(polar_df, fitbit_df, activity_id, polar_device_name, fitbit_device_name)
+    payload = main.merge_telemetry(
+        polar_df, fitbit_df, activity_id, polar_device_name, fitbit_device_name,
+        fitbit_firmware_version=fitbit_firmware_version,
+    )
     payload = main.enrich_with_weather(payload)  # no GPS extracted -> no-ops to None, not a crash
     return payload
 

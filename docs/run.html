@@ -59,6 +59,7 @@
             header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
             h1 { font-size: 20px; font-weight: 600; margin: 0; color: var(--text-primary); }
             #subtitle { font-size: 13px; color: var(--text-secondary); margin: 2px 0 0; }
+            #firmwareFootnote { font-size: 11px; color: var(--text-muted); margin: 4px 0 0; display: none; }
 
             #backLink {
                 font-size: 13px;
@@ -129,6 +130,7 @@
             <div>
                 <h1>Cadence Lock Investigation</h1>
                 <p id="subtitle">Garmin vs. Fitbit heart rate against stride cadence and pace.</p>
+                <p id="firmwareFootnote"></p>
                 <a id="backLink" href="index.html">&larr; Back to all runs</a>
             </div>
             <button id="tableToggle" type="button">View as table</button>
@@ -341,6 +343,21 @@
                         document.getElementById('subtitle').textContent = polarPresent
                             ? `${primaryName} vs. ${fitbitName} heart rate against stride cadence and pace, with ${polarName} as the reference device.`
                             : `${primaryName} vs. ${fitbitName} heart rate against stride cadence and pace.`;
+
+                        // Firmware is a footnote, not a headline stat - Garmin's
+                        // is a confirmed read, Fitbit's is inferred (see
+                        // main.fetch_fitbit_firmware_version's docstring), so
+                        // only the Fitbit half gets an "inferred" qualifier.
+                        const firmwareParts = [];
+                        if (data.garmin_firmware_version) firmwareParts.push(`${primaryName} fw ${data.garmin_firmware_version}`);
+                        if (data.fitbit_firmware_version) firmwareParts.push(`${fitbitName} fw ${data.fitbit_firmware_version} (inferred)`);
+                        const firmwareFootnote = document.getElementById('firmwareFootnote');
+                        if (firmwareParts.length) {
+                            firmwareFootnote.textContent = firmwareParts.join(' · ');
+                            firmwareFootnote.style.display = 'block';
+                        } else {
+                            firmwareFootnote.style.display = 'none';
+                        }
 
                         const firstTimestamp = Array.isArray(data.time) ? data.time[0] : null;
                         const datePart = typeof firstTimestamp === 'string' ? firstTimestamp.slice(0, 10) : null;

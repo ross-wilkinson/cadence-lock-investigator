@@ -31,7 +31,7 @@ import publish_run
 # permanently shadowed the moment `def main(...)` is defined below (both
 # bind the same global name), silently breaking every main.xxx call in this
 # file, not just the CLI.
-from main import enrich_with_weather, fetch_fitbit_hr_df, fetch_polar_exercise_samples, find_matching_polar_exercise, merge_telemetry, normalize_device_name, parse_garmin_metrics, refresh_google_token
+from main import enrich_with_weather, fetch_fitbit_firmware_version, fetch_fitbit_hr_df, fetch_polar_exercise_samples, find_matching_polar_exercise, merge_telemetry, normalize_device_name, parse_garmin_metrics, refresh_google_token
 
 
 CACHE_DIR = ".sync_cache"
@@ -200,14 +200,26 @@ def already_published_ids() -> set:
 
 
 def build_garmin_device_map(garmin_client) -> dict:
-    """Maps str(deviceId) -> friendly display name (e.g. "Instinct 2X Solar"),
-    via the account's registered devices. Built once per script run - device
-    ids are compared as strings since different Garmin endpoints return the
-    same id as an int (activity summaries) or a string (get_activity).
+    """Maps str(deviceId) -> {"name": friendly display name (e.g. "Instinct
+    2X Solar"), "firmware": currentFirmwareVersion}, via the account's
+    registered devices. Built once per script run - device ids are compared
+    as strings since different Garmin endpoints return the same id as an
+    int (activity summaries) or a string (get_activity).
+
+    firmware is Garmin's live current-state value at call time, not tagged
+    to any specific historical activity - fine for a fresh publish
+    (happening close to the actual run), but callers reprocessing an
+    already-published historical run should NOT use this map's firmware
+    value (it would misattribute today's firmware to an old run) - see
+    reprocess_runs.py, which carries forward the already-stored value
+    instead.
     """
     devices = garmin_client.get_devices()
     return {
-        str(d.get('deviceId')): normalize_device_name('Garmin', d.get('displayName') or d.get('productDisplayName'))
+        str(d.get('deviceId')): {
+            "name": normalize_device_name('Garmin', d.get('displayName') or d.get('productDisplayName')),
+            "firmware": d.get('currentFirmwareVersion'),
+        }
         for d in devices
     }
 
@@ -265,12 +277,15 @@ def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: 
     garmin_df = parse_garmin_metrics(details)
     garmin_df['garmin_hr'] = pd.to_numeric(garmin_df['garmin_hr'], errors='coerce')
     garmin_df['cadence_spm'] = pd.to_numeric(garmin_df['cadence_spm'], errors='coerce')
-    garmin_device_name = garmin_device_map.get(str(garmin_activity.get('deviceId')))
+    garmin_device_entry = garmin_device_map.get(str(garmin_activity.get('deviceId')), {})
+    garmin_device_name = garmin_device_entry.get("name")
+    garmin_firmware_version = garmin_device_entry.get("firmware")
 
     interval = google_session.get("exercise", {}).get("interval", {})
     start_t = interval.get("startTime")
     end_t = interval.get("endTime")
     fitbit_df, fitbit_device_name = fetch_fitbit_hr_df(google_client, headers, start_t, end_t)
+    fitbit_firmware_version = fetch_fitbit_firmware_version(fitbit_device_name)
 
     if fitbit_df.empty:
         raise NoFitbitDataError(
@@ -283,7 +298,10 @@ def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: 
     g_end = g_start + pd.Timedelta(seconds=garmin_activity["duration"])
     polar_df, polar_device_name = find_and_fetch_polar_match(polar_access_token, g_start, g_end, activity_id)
 
-    payload = merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name, polar_df, polar_device_name)
+    payload = merge_telemetry(
+        garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name, polar_df, polar_device_name,
+        garmin_firmware_version=garmin_firmware_version, fitbit_firmware_version=fitbit_firmware_version,
+    )
     payload = enrich_with_weather(payload)
     return publish_run.write_run(payload, "unreviewed", "unreviewed")
 

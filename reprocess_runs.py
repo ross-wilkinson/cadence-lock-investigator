@@ -85,7 +85,7 @@ def reprocess_run(activity_id, garmin_client, google_client: httpx.Client, heade
         with open(summary_cache_path, "w") as f:
             json.dump(summary, f)
     device_id = str(summary.get("metadataDTO", {}).get("deviceMetaDataDTO", {}).get("deviceId"))
-    garmin_device_name = garmin_device_map.get(device_id)
+    garmin_device_name = garmin_device_map.get(device_id, {}).get("name")
 
     garmin_df = parse_garmin_metrics(details)
     garmin_df['garmin_hr'] = pd.to_numeric(garmin_df['garmin_hr'], errors='coerce')
@@ -107,7 +107,17 @@ def reprocess_run(activity_id, garmin_client, google_client: httpx.Client, heade
 
     fitbit_df, fitbit_device_name = fetch_fitbit_hr_df(google_client, headers, start_iso, end_iso)
 
-    new_payload = merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name)
+    # Firmware is carried forward from the already-stored payload, not
+    # re-fetched: garmin_device_map's firmware is Garmin's *current*
+    # firmware at the moment this script runs, and re-scraping Fitbit's
+    # inferred value would do the same - both would misattribute today's
+    # firmware to a historical run. Reprocessing recomputes HR/TRIMP fields
+    # from raw sources; firmware isn't one of the fields it's meant to fix.
+    new_payload = merge_telemetry(
+        garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name,
+        garmin_firmware_version=old_payload.get("garmin_firmware_version"),
+        fitbit_firmware_version=old_payload.get("fitbit_firmware_version"),
+    )
     return new_payload, old_payload
 
 

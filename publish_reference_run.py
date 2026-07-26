@@ -68,12 +68,15 @@ def build_latest_reference_run_payload(garmin_client, polar_access_token: str, g
     garmin_df = main.parse_garmin_metrics(details)
     garmin_df['garmin_hr'] = pd.to_numeric(garmin_df['garmin_hr'], errors='coerce')
     garmin_df['cadence_spm'] = pd.to_numeric(garmin_df['cadence_spm'], errors='coerce')
-    garmin_device_name = garmin_device_map.get(str(garmin_activity.get('deviceId')))
+    garmin_device_entry = garmin_device_map.get(str(garmin_activity.get('deviceId')), {})
+    garmin_device_name = garmin_device_entry.get("name")
+    garmin_firmware_version = garmin_device_entry.get("firmware")
 
     interval = google_session.get("exercise", {}).get("interval", {})
     start_t = interval.get("startTime")
     end_t = interval.get("endTime")
     fitbit_df, fitbit_device_name = main.fetch_fitbit_hr_df(google_client, google_headers, start_t, end_t)
+    fitbit_firmware_version = main.fetch_fitbit_firmware_version(fitbit_device_name)
     if fitbit_df.empty:
         raise sync_runs.NoFitbitDataError(f"No Fitbit-platform heart-rate data found for activity {activity_id} in window {start_t} -> {end_t}.")
 
@@ -88,7 +91,10 @@ def build_latest_reference_run_payload(garmin_client, polar_access_token: str, g
     else:
         print("No matching Polar exercise found within tolerance - publishing Garmin+Fitbit only.")
 
-    payload = main.merge_telemetry(garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name, polar_df, polar_device_name)
+    payload = main.merge_telemetry(
+        garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name, polar_df, polar_device_name,
+        garmin_firmware_version=garmin_firmware_version, fitbit_firmware_version=fitbit_firmware_version,
+    )
     payload = main.enrich_with_weather(payload)
     return payload
 
