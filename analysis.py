@@ -283,6 +283,46 @@ def worst_pace_divergence(pace_hr_distribution: dict) -> dict | None:
     return {"bucket": worst_bucket, "gap_bpm": round(worst_gap, 1)}
 
 
+def worst_pace_divergence_vs_reference(pace_hr_distribution: dict, device_key: str, reference_key: str = "polar") -> dict | None:
+    """Given a run's pace_hr_distribution, finds the pace bucket (among
+    buckets shared between device_key and reference_key) with the largest
+    |mean_device - mean_reference| gap. Returns {"bucket": label,
+    "gap_bpm": float, "reference_mean_bpm": float} or None if no shared
+    bucket exists (e.g. reference_key has no data - a 2-way run). Unlike
+    worst_pace_divergence() (symmetric Garmin-vs-Fitbit, no presumed-
+    accurate side), reference_key is a silver-standard device (Polar H10),
+    so its mean IS the true HR at that bucket - no heuristic needed.
+    """
+    dist_device = pace_hr_distribution.get(device_key) or {}
+    dist_reference = pace_hr_distribution.get(reference_key) or {}
+    shared_buckets = set(dist_device) & set(dist_reference)
+    if not shared_buckets:
+        return None
+
+    worst_bucket = None
+    worst_gap = -1.0
+    worst_reference_mean = None
+    for bucket in shared_buckets:
+        mean_device = dist_device[bucket]["mean"]
+        mean_reference = dist_reference[bucket]["mean"]
+        if mean_device is None or mean_reference is None:
+            continue
+        gap = abs(mean_device - mean_reference)
+        if gap > worst_gap:
+            worst_gap = gap
+            worst_bucket = bucket
+            worst_reference_mean = mean_reference
+
+    if worst_bucket is None:
+        return None
+
+    return {
+        "bucket": worst_bucket,
+        "gap_bpm": round(worst_gap, 1),
+        "reference_mean_bpm": round(worst_reference_mean, 1),
+    }
+
+
 # Objective #3, Phase 2: per-second cadence-lock scoring.
 #
 # This is the "production" form of phase1_eda/eda.py's validated design -

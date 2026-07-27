@@ -17,7 +17,7 @@ published - Polar's AccessLink API has no historical range query (only a
 rolling recent window, see list_polar_exercises' docstring), so unlike
 sync_runs.py this isn't built as a bulk backfill.
 
-    python publish_reference_run.py --garmin-flag unreviewed --fitbit-flag unreviewed
+    python publish_reference_run.py --garmin-flags unreviewed --fitbit-flags unreviewed
 """
 import argparse
 import json
@@ -101,9 +101,12 @@ def build_latest_reference_run_payload(garmin_client, polar_access_token: str, g
 
 def main_cli(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--garmin-flag", choices=publish_run.FLAG_CHOICES, default="unreviewed")
-    parser.add_argument("--fitbit-flag", choices=publish_run.FLAG_CHOICES, default="unreviewed")
+    parser.add_argument("--garmin-flags", nargs="+", choices=publish_run.FLAG_CHOICES, default=["unreviewed"])
+    parser.add_argument("--fitbit-flags", nargs="+", choices=publish_run.FLAG_CHOICES, default=["unreviewed"])
     args = parser.parse_args(argv)
+
+    garmin_flags = publish_run.normalize_flags(args.garmin_flags)
+    fitbit_flags = publish_run.normalize_flags(args.fitbit_flags)
 
     garmin_client = Garmin(os.getenv("GARMIN_EMAIL"), os.getenv("GARMIN_PASSWORD"))
     garmin_client.login()
@@ -123,9 +126,9 @@ def main_cli(argv=None):
     with httpx.Client(timeout=20.0) as google_client:
         payload = build_latest_reference_run_payload(garmin_client, polar_access_token, google_client, google_headers, garmin_device_map)
 
-    entry = publish_run.write_run(payload, args.garmin_flag, args.fitbit_flag)
+    entry = publish_run.write_run(payload, garmin_flags, fitbit_flags)
     print(
-        f"Published run {entry['id']} ({entry['start']} -> {entry['end']}), garmin_flag={entry['garmin_flag']}, fitbit_flag={entry['fitbit_flag']}\n"
+        f"Published run {entry['id']} ({entry['start']} -> {entry['end']}), garmin_flags={entry['garmin_flags']}, fitbit_flags={entry['fitbit_flags']}\n"
         f"  Garmin: {entry['garmin_device_name']} (avg {entry.get('avg_garmin_hr')} bpm)\n"
         f"  Fitbit: {entry['fitbit_device_name']} (avg {entry.get('avg_fitbit_hr')} bpm)\n"
         f"  Polar:  {entry.get('polar_device_name')} (avg {entry.get('avg_polar_hr')} bpm)"

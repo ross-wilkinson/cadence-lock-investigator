@@ -8,8 +8,6 @@
     "avg_fitbit_hr": 153.2,
     "avg_polar_hr": 144.2,
     "avg_cadence_spm": 163.9,
-    "garmin_flag": "unreviewed",
-    "fitbit_flag": "unreviewed",
     "garmin_device_name": "Garmin Instinct 2X Solar",
     "fitbit_device_name": "Fitbit Inspire 3",
     "polar_device_name": "Polar H10",
@@ -25,7 +23,23 @@
     "trimp_difference_garmin_polar": 13.9,
     "trimp_difference_fitbit_polar": 2.9,
     "total_pace_buckets": 34,
-    "buckets_with_hr_divergence": 1
+    "buckets_with_hr_divergence": 1,
+    "garmin_flags": [
+      "positive_lag",
+      "positive_blunder"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 20.8,
+    "fitbit_coverage_pct": 36.7,
+    "polar_coverage_pct": 100.0,
+    "garmin_vs_polar_worst_bucket": "18:00-18:30/km",
+    "garmin_vs_polar_gap_bpm": 5.0,
+    "garmin_vs_polar_true_hr_bpm": 109.0,
+    "fitbit_vs_polar_worst_bucket": "13:30-14:00/km",
+    "fitbit_vs_polar_gap_bpm": 14.2,
+    "fitbit_vs_polar_true_hr_bpm": 133.8
   },
   {
     "id": 23728858378,
@@ -52,11 +66,24 @@
     "trimp_difference_fitbit_polar": 3.5,
     "total_pace_buckets": 22,
     "buckets_with_hr_divergence": 4,
-    "garmin_flag": "positive_blunder",
-    "fitbit_flag": "positive_cadence",
     "worst_pace_bucket": "17:00-17:30/km",
     "worst_pace_bucket_gap_bpm": 23.8,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": null,
+    "garmin_flags": [
+      "positive_blunder"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 51.4,
+    "fitbit_coverage_pct": 24.3,
+    "polar_coverage_pct": 100.0,
+    "garmin_vs_polar_worst_bucket": "11:30-12:00/km",
+    "garmin_vs_polar_gap_bpm": 11.0,
+    "garmin_vs_polar_true_hr_bpm": 106.0,
+    "fitbit_vs_polar_worst_bucket": "17:00-17:30/km",
+    "fitbit_vs_polar_gap_bpm": 26.6,
+    "fitbit_vs_polar_true_hr_bpm": 149.4
   },
   {
     "id": 23718324572,
@@ -83,11 +110,24 @@
     "trimp_difference_fitbit_polar": 1.6,
     "total_pace_buckets": 27,
     "buckets_with_hr_divergence": 8,
-    "garmin_flag": "positive_lag",
-    "fitbit_flag": "positive_cadence",
     "worst_pace_bucket": "7:30-8:00/km",
     "worst_pace_bucket_gap_bpm": 20.8,
-    "worst_bucket_true_hr_bpm": null
+    "worst_bucket_true_hr_bpm": null,
+    "garmin_flags": [
+      "positive_lag"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 29.3,
+    "fitbit_coverage_pct": 26.5,
+    "polar_coverage_pct": 100.0,
+    "garmin_vs_polar_worst_bucket": "14:30-15:00/km",
+    "garmin_vs_polar_gap_bpm": 29.0,
+    "garmin_vs_polar_true_hr_bpm": 133.0,
+    "fitbit_vs_polar_worst_bucket": "7:30-8:00/km",
+    "fitbit_vs_polar_gap_bpm": 19.2,
+    "fitbit_vs_polar_true_hr_bpm": 119.8
   },
   {
     "id": -1784858581,
@@ -111,8 +151,21 @@
     "worst_pace_bucket": "58:30-59:00/km",
     "worst_pace_bucket_gap_bpm": 89.0,
     "worst_bucket_true_hr_bpm": 75.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 100.0,
+    "fitbit_coverage_pct": 48.5,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23697193172,
@@ -134,8 +187,21 @@
     "worst_pace_bucket": "10:00-10:30/km",
     "worst_pace_bucket_gap_bpm": 97.7,
     "worst_bucket_true_hr_bpm": null,
-    "garmin_flag": "positive_cadence",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "positive_cadence"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.3,
+    "fitbit_coverage_pct": 47.8,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23684422366,
@@ -157,8 +223,21 @@
     "worst_pace_bucket": "11:00-11:30/km",
     "worst_pace_bucket_gap_bpm": 25.8,
     "worst_bucket_true_hr_bpm": 95.7,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.4,
+    "fitbit_coverage_pct": 45.8,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23672318504,
@@ -180,8 +259,21 @@
     "worst_pace_bucket": "12:30-13:00/km",
     "worst_pace_bucket_gap_bpm": 70.2,
     "worst_bucket_true_hr_bpm": 91.8,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 100.0,
+    "fitbit_coverage_pct": 46.8,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23657891755,
@@ -203,8 +295,21 @@
     "worst_pace_bucket": "29:00-29:30/km",
     "worst_pace_bucket_gap_bpm": 72.0,
     "worst_bucket_true_hr_bpm": 81.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.2,
+    "fitbit_coverage_pct": 48.1,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23634763296,
@@ -226,8 +331,21 @@
     "worst_pace_bucket": "7:00-7:30/km",
     "worst_pace_bucket_gap_bpm": 39.5,
     "worst_bucket_true_hr_bpm": null,
-    "garmin_flag": "positive_cadence",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "positive_cadence"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 35.1,
+    "fitbit_coverage_pct": 44.7,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23610897035,
@@ -249,8 +367,21 @@
     "worst_pace_bucket": "11:00-11:30/km",
     "worst_pace_bucket_gap_bpm": 47.9,
     "worst_bucket_true_hr_bpm": 114.8,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 49.6,
+    "fitbit_coverage_pct": 45.6,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23573769885,
@@ -272,8 +403,21 @@
     "worst_pace_bucket": "27:30-28:00/km",
     "worst_pace_bucket_gap_bpm": 53.0,
     "worst_bucket_true_hr_bpm": 94.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 49.3,
+    "fitbit_coverage_pct": 49.1,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23562706570,
@@ -295,8 +439,21 @@
     "worst_pace_bucket": "9:00-9:30/km",
     "worst_pace_bucket_gap_bpm": 25.4,
     "worst_bucket_true_hr_bpm": 116.4,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 49.4,
+    "fitbit_coverage_pct": 45.9,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23513208518,
@@ -318,8 +475,21 @@
     "worst_pace_bucket": "16:00-16:30/km",
     "worst_pace_bucket_gap_bpm": 17.0,
     "worst_bucket_true_hr_bpm": 62.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.5,
+    "fitbit_coverage_pct": 45.3,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23492056327,
@@ -341,8 +511,21 @@
     "worst_pace_bucket": "7:00-7:30/km",
     "worst_pace_bucket_gap_bpm": 39.5,
     "worst_bucket_true_hr_bpm": 102.5,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 33.6,
+    "fitbit_coverage_pct": 45.1,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23479915333,
@@ -364,8 +547,21 @@
     "worst_pace_bucket": "5:30-6:00/km",
     "worst_pace_bucket_gap_bpm": 37.5,
     "worst_bucket_true_hr_bpm": 124.5,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 100.0,
+    "fitbit_coverage_pct": 45.8,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23444663302,
@@ -387,8 +583,21 @@
     "worst_pace_bucket": "20:30-21:00/km",
     "worst_pace_bucket_gap_bpm": 41.8,
     "worst_bucket_true_hr_bpm": 114.2,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.3,
+    "fitbit_coverage_pct": 48.0,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23331599739,
@@ -410,8 +619,21 @@
     "worst_pace_bucket": "16:30-17:00/km",
     "worst_pace_bucket_gap_bpm": 40.7,
     "worst_bucket_true_hr_bpm": null,
-    "garmin_flag": "negative",
-    "fitbit_flag": "negative"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "negative"
+    ],
+    "garmin_coverage_pct": 49.1,
+    "fitbit_coverage_pct": 43.2,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23321177969,
@@ -433,8 +655,21 @@
     "worst_pace_bucket": "8:30-9:00/km",
     "worst_pace_bucket_gap_bpm": 26.2,
     "worst_bucket_true_hr_bpm": 144.3,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 43.8,
+    "fitbit_coverage_pct": 46.4,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23298691779,
@@ -456,8 +691,21 @@
     "worst_pace_bucket": "9:30-10:00/km",
     "worst_pace_bucket_gap_bpm": 38.4,
     "worst_bucket_true_hr_bpm": 107.6,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 49.8,
+    "fitbit_coverage_pct": 46.0,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23275481805,
@@ -479,8 +727,21 @@
     "worst_pace_bucket": "6:00-6:30/km",
     "worst_pace_bucket_gap_bpm": 37.1,
     "worst_bucket_true_hr_bpm": 126.2,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.5,
+    "fitbit_coverage_pct": 46.3,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23262511515,
@@ -502,8 +763,21 @@
     "worst_pace_bucket": "8:30-9:00/km",
     "worst_pace_bucket_gap_bpm": 22.8,
     "worst_bucket_true_hr_bpm": 120.7,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 32.6,
+    "fitbit_coverage_pct": 42.6,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23226403791,
@@ -525,8 +799,21 @@
     "worst_pace_bucket": "27:30-28:00/km",
     "worst_pace_bucket_gap_bpm": 43.0,
     "worst_bucket_true_hr_bpm": 118.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 47.0,
+    "fitbit_coverage_pct": 49.1,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23214939764,
@@ -548,8 +835,21 @@
     "worst_pace_bucket": "9:00-9:30/km",
     "worst_pace_bucket_gap_bpm": 21.3,
     "worst_bucket_true_hr_bpm": 98.3,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.3,
+    "fitbit_coverage_pct": 45.5,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23206149946,
@@ -571,8 +871,21 @@
     "worst_pace_bucket": "6:30-7:00/km",
     "worst_pace_bucket_gap_bpm": 20.2,
     "worst_bucket_true_hr_bpm": 144.7,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.3,
+    "fitbit_coverage_pct": 45.8,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23177128449,
@@ -594,8 +907,21 @@
     "worst_pace_bucket": "20:00-20:30/km",
     "worst_pace_bucket_gap_bpm": 21.0,
     "worst_bucket_true_hr_bpm": 97.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 99.7,
+    "fitbit_coverage_pct": 45.9,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23168405979,
@@ -617,8 +943,21 @@
     "worst_pace_bucket": "13:00-13:30/km",
     "worst_pace_bucket_gap_bpm": 35.4,
     "worst_bucket_true_hr_bpm": 111.9,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 49.4,
+    "fitbit_coverage_pct": 44.6,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23143863566,
@@ -640,8 +979,21 @@
     "worst_pace_bucket": "8:30-9:00/km",
     "worst_pace_bucket_gap_bpm": 36.0,
     "worst_bucket_true_hr_bpm": 101.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 48.4,
+    "fitbit_coverage_pct": 42.6,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23122758603,
@@ -663,8 +1015,21 @@
     "worst_pace_bucket": "17:00-17:30/km",
     "worst_pace_bucket_gap_bpm": 49.7,
     "worst_bucket_true_hr_bpm": 122.3,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 48.9,
+    "fitbit_coverage_pct": 47.2,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23107688892,
@@ -686,8 +1051,21 @@
     "worst_pace_bucket": "13:00-13:30/km",
     "worst_pace_bucket_gap_bpm": 14.3,
     "worst_bucket_true_hr_bpm": null,
-    "garmin_flag": "positive_cadence",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "positive_cadence"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.5,
+    "fitbit_coverage_pct": 43.3,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23095903019,
@@ -709,8 +1087,21 @@
     "worst_pace_bucket": "9:00-9:30/km",
     "worst_pace_bucket_gap_bpm": 36.5,
     "worst_bucket_true_hr_bpm": null,
-    "garmin_flag": "negative",
-    "fitbit_flag": "negative"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "negative"
+    ],
+    "garmin_coverage_pct": 50.3,
+    "fitbit_coverage_pct": 44.5,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23084380435,
@@ -732,8 +1123,21 @@
     "worst_pace_bucket": "20:30-21:00/km",
     "worst_pace_bucket_gap_bpm": 20.0,
     "worst_bucket_true_hr_bpm": null,
-    "garmin_flag": "negative",
-    "fitbit_flag": "negative"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "negative"
+    ],
+    "garmin_coverage_pct": 25.3,
+    "fitbit_coverage_pct": 42.7,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23058741060,
@@ -755,8 +1159,21 @@
     "worst_pace_bucket": "8:00-8:30/km",
     "worst_pace_bucket_gap_bpm": 38.0,
     "worst_bucket_true_hr_bpm": 140.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 92.4,
+    "fitbit_coverage_pct": 47.9,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23038189298,
@@ -778,8 +1195,21 @@
     "worst_pace_bucket": "14:00-14:30/km",
     "worst_pace_bucket_gap_bpm": 14.4,
     "worst_bucket_true_hr_bpm": 141.9,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.0,
+    "fitbit_coverage_pct": 44.6,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23022491839,
@@ -801,8 +1231,21 @@
     "worst_pace_bucket": "38:30-39:00/km",
     "worst_pace_bucket_gap_bpm": 56.0,
     "worst_bucket_true_hr_bpm": 74.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.3,
+    "fitbit_coverage_pct": 49.1,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   },
   {
     "id": 23012188858,
@@ -824,7 +1267,20 @@
     "worst_pace_bucket": "9:30-10:00/km",
     "worst_pace_bucket_gap_bpm": 46.5,
     "worst_bucket_true_hr_bpm": 66.0,
-    "garmin_flag": "negative",
-    "fitbit_flag": "positive_cadence"
+    "garmin_flags": [
+      "negative"
+    ],
+    "fitbit_flags": [
+      "positive_cadence"
+    ],
+    "garmin_coverage_pct": 50.5,
+    "fitbit_coverage_pct": 45.2,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null
   }
 ]

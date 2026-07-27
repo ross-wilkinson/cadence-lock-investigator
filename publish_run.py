@@ -3,18 +3,21 @@ site under docs/. Run locally, or by .github/workflows/publish.yml.
 
 Each device gets its own manual review verdict (Objective #3's real
 detection heuristic doesn't exist yet) - you review the chart yourself and
-pass a per-device judgment call in, naming which failure mode (if any) that
-specific device showed:
+pass a per-device judgment call in, naming which failure mode(s) (if any)
+that specific device showed:
 
-    python publish_run.py --garmin-flag positive_lag --fitbit-flag positive_cadence
+    python publish_run.py --garmin-flags positive_lag --fitbit-flags positive_cadence
 
 FLAG_CHOICES is deliberately failure-mode-based, not just "positive/negative" -
 different devices have shown genuinely different failure modes on the same
 run (see PROJECT_DIRECTIVE.md Objectives #3, #10, #11): positive_cadence is
 Fitbit-style cadence substitution, positive_lag is Garmin's delayed/over-
 smoothed signal, positive_blunder is a bounded excursion-and-recovery
-dropout unrelated to cadence. A device can only carry one verdict per run,
-so pick whichever failure mode best characterizes what you saw.
+dropout unrelated to cadence. A device's flags are now a list, since a
+single run can show more than one failure mode on the same device at once
+(e.g. a lag artifact AND a dropout) - one or more positive_* values may
+co-occur. "unreviewed" and "negative" are singleton states: if either
+appears, it must be the only element (see normalize_flags()).
 """
 import argparse
 import json
@@ -34,6 +37,32 @@ DOCS_DATA_DIR = os.path.join("docs", "data")
 # Shared by every publish entry point (publish_run.py, publish_reference_run.py,
 # publish_polar_run.py) so the vocabulary only has to change in one place.
 FLAG_CHOICES = ["unreviewed", "negative", "positive_cadence", "positive_lag", "positive_blunder"]
+
+
+def normalize_flags(flags: list[str]) -> list[str]:
+    """Validates a per-device flags list before it's written into the
+    manifest. Rules (see module docstring): non-empty; every value must be
+    in FLAG_CHOICES; "unreviewed"/"negative" are singleton-only states -
+    if either appears, it must be the sole element (mutually exclusive with
+    everything else, including each other). One or more positive_* values
+    may otherwise co-occur freely. Returns flags unchanged (as a list) when
+    valid; raises ValueError with a clear message otherwise.
+    """
+    if not flags:
+        raise ValueError("flags list must not be empty.")
+
+    invalid = [f for f in flags if f not in FLAG_CHOICES]
+    if invalid:
+        raise ValueError(f"Invalid flag value(s) {invalid!r} - must be one of {FLAG_CHOICES}.")
+
+    singleton_present = [f for f in flags if f in ("unreviewed", "negative")]
+    if singleton_present and len(flags) > 1:
+        raise ValueError(
+            f"{singleton_present!r} must be the only element when present, "
+            f"but got {flags!r}."
+        )
+
+    return flags
 
 
 def _resolve_hr_max() -> float | None:
@@ -175,7 +204,24 @@ def compute_trimp_stats(time: list, garmin_hr: list, fitbit_hr: list, polar_hr: 
     }
 
 
-def _summarize(payload: dict, garmin_flag: str, fitbit_flag: str) -> dict:
+def _coverage_pct(non_null_count: int, elapsed_seconds: float | None) -> float | None:
+    """Objective #9: what % of a naive "1 sample per second for the run's
+    duration" expectation a device actually delivered. All three devices
+    are judged against the same flat 1Hz assumed baseline - Garmin's and
+    Fitbit's true advertised HR sampling rates aren't reliably known, and
+    Polar H10's real spec (130Hz ECG) isn't the right comparison either -
+    so this is a deliberately fair, not manufacturer-accurate, baseline
+    (the dashboard caveats this; this function just gets the numbers
+    right). None (not 0.0) when elapsed_seconds can't support a rate at
+    all - a device present but delivering zero samples over a valid window
+    is a real 0.0%, not an undefined one.
+    """
+    if not elapsed_seconds:
+        return None
+    return round(min(100.0, non_null_count / elapsed_seconds * 100), 1)
+
+
+def _summarize(payload: dict, garmin_flags: list[str], fitbit_flags: list[str], pace_hr_distribution: dict | None = None) -> dict:
     hr_values = [v for v in payload["garmin_hr"] if v is not None]
     fitbit_values = [v for v in payload["fitbit_hr"] if v is not None]
     polar_values = [v for v in payload.get("polar_hr") or [] if v is not None]
@@ -189,6 +235,24 @@ def _summarize(payload: dict, garmin_flag: str, fitbit_flag: str) -> dict:
     fitbit_rate = analysis.median_sample_rate_hz(offsets, payload["fitbit_hr"])
     polar_rate = analysis.median_sample_rate_hz(offsets, payload.get("polar_hr") or [])
 
+    # elapsed_seconds < 2 real timestamps collapses to an empty offsets list
+    # above (or a single [0.0] entry), so this also naturally covers the
+    # "fewer than 2 entries" case from the coverage spec, not just None/0.
+    elapsed_seconds = offsets[-1] if len(offsets) >= 2 else None
+    garmin_coverage_pct = _coverage_pct(len(hr_values), elapsed_seconds)
+    fitbit_coverage_pct = _coverage_pct(len(fitbit_values), elapsed_seconds)
+    polar_coverage_pct = _coverage_pct(len(polar_values), elapsed_seconds)
+
+    # Objective #9 (Part B): per-device pace-divergence directly against
+    # Polar H10 (the actual reference device), replacing the Garmin-vs-
+    # Fitbit heuristic (worst_pace_divergence / _non_suspect_true_hr in
+    # recompute_dashboard_stats.py) wherever real Polar data exists - Polar's
+    # own mean at the worst bucket IS the true HR, no heuristic needed. All
+    # six fields stay None on 2-way runs (no Polar data -> no shared bucket).
+    pace_hr_distribution = pace_hr_distribution or {}
+    garmin_vs_polar = analysis.worst_pace_divergence_vs_reference(pace_hr_distribution, "garmin")
+    fitbit_vs_polar = analysis.worst_pace_divergence_vs_reference(pace_hr_distribution, "fitbit")
+
     return {
         "id": payload["activity_id"],
         "start": payload["time"][0] if payload["time"] else None,
@@ -198,21 +262,30 @@ def _summarize(payload: dict, garmin_flag: str, fitbit_flag: str) -> dict:
         "avg_fitbit_hr": round(sum(fitbit_values) / len(fitbit_values), 1) if fitbit_values else None,
         "avg_polar_hr": round(sum(polar_values) / len(polar_values), 1) if polar_values else None,
         "avg_cadence_spm": round(sum(cadence_values) / len(cadence_values), 1) if cadence_values else None,
-        "garmin_flag": garmin_flag,
-        "fitbit_flag": fitbit_flag,
+        "garmin_flags": garmin_flags,
+        "fitbit_flags": fitbit_flags,
         "garmin_device_name": payload.get("garmin_device_name"),
         "fitbit_device_name": payload.get("fitbit_device_name"),
         "polar_device_name": payload.get("polar_device_name"),
         "garmin_sample_rate_hz": round(garmin_rate, 3) if garmin_rate else None,
         "fitbit_sample_rate_hz": round(fitbit_rate, 3) if fitbit_rate else None,
         "polar_sample_rate_hz": round(polar_rate, 3) if polar_rate else None,
+        "garmin_coverage_pct": garmin_coverage_pct,
+        "fitbit_coverage_pct": fitbit_coverage_pct,
+        "polar_coverage_pct": polar_coverage_pct,
+        "garmin_vs_polar_worst_bucket": garmin_vs_polar["bucket"] if garmin_vs_polar else None,
+        "garmin_vs_polar_gap_bpm": garmin_vs_polar["gap_bpm"] if garmin_vs_polar else None,
+        "garmin_vs_polar_true_hr_bpm": garmin_vs_polar["reference_mean_bpm"] if garmin_vs_polar else None,
+        "fitbit_vs_polar_worst_bucket": fitbit_vs_polar["bucket"] if fitbit_vs_polar else None,
+        "fitbit_vs_polar_gap_bpm": fitbit_vs_polar["gap_bpm"] if fitbit_vs_polar else None,
+        "fitbit_vs_polar_true_hr_bpm": fitbit_vs_polar["reference_mean_bpm"] if fitbit_vs_polar else None,
         "temperature_c": payload.get("temperature_c"),
         "humidity_pct": payload.get("humidity_pct"),
         **trimp_stats,
     }
 
 
-def write_run(payload: dict, garmin_flag: str, fitbit_flag: str) -> dict:
+def write_run(payload: dict, garmin_flags: list[str], fitbit_flags: list[str]) -> dict:
     """Writes a run payload to docs/data/<id>.json and upserts its summary
     into docs/data/index.json. Shared by the single-run publish() flow and
     sync_runs.py's bulk backfill, so there's exactly one write path.
@@ -242,7 +315,7 @@ def write_run(payload: dict, garmin_flag: str, fitbit_flag: str) -> dict:
         with open(index_path, "r") as f:
             manifest = json.load(f)
 
-    entry = _summarize(payload, garmin_flag, fitbit_flag)
+    entry = _summarize(payload, garmin_flags, fitbit_flags, pace_hr_distribution=payload["pace_hr_distribution"])
 
     # Lightweight summary stat for the gallery: how many pace buckets
     # present in both devices' distributions show a mean-HR gap > 10 bpm
@@ -265,23 +338,25 @@ def write_run(payload: dict, garmin_flag: str, fitbit_flag: str) -> dict:
     return entry
 
 
-def publish(garmin_flag: str, fitbit_flag: str) -> dict:
+def publish(garmin_flags: list[str], fitbit_flags: list[str]) -> dict:
     refresh_token = _get_refresh_token()
     access_token = main.refresh_google_token(refresh_token)
     payload = main.build_run_payload(access_token, use_garmin_cache=False)
-    return write_run(payload, garmin_flag, fitbit_flag)
+    return write_run(payload, garmin_flags, fitbit_flags)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--garmin-flag", choices=FLAG_CHOICES, default="unreviewed")
-    parser.add_argument("--fitbit-flag", choices=FLAG_CHOICES, default="unreviewed")
+    parser.add_argument("--garmin-flags", nargs="+", choices=FLAG_CHOICES, default=["unreviewed"])
+    parser.add_argument("--fitbit-flags", nargs="+", choices=FLAG_CHOICES, default=["unreviewed"])
     args = parser.parse_args()
 
     try:
-        entry = publish(args.garmin_flag, args.fitbit_flag)
+        garmin_flags = normalize_flags(args.garmin_flags)
+        fitbit_flags = normalize_flags(args.fitbit_flags)
+        entry = publish(garmin_flags, fitbit_flags)
     except Exception as e:
-        print(f"Publish failed: {type(e).__name__}: {e}", file=sys.stderr)
+        print(f"Publish failed: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Published run {entry['id']} ({entry['start']} -> {entry['end']}), garmin_flag={entry['garmin_flag']}, fitbit_flag={entry['fitbit_flag']}")
+    print(f"Published run {entry['id']} ({entry['start']} -> {entry['end']}), garmin_flags={entry['garmin_flags']}, fitbit_flags={entry['fitbit_flags']}")

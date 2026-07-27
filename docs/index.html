@@ -207,14 +207,34 @@
             #dashboard {
                 display: none;
                 flex-direction: column;
-                gap: 8px;
+                gap: 20px;
                 background: var(--surface-1);
                 border: 1px solid var(--border);
                 border-radius: 8px;
                 padding: 18px 20px;
             }
             #dashboard.visible { display: flex; }
-            #dashboardTiles {
+
+            .dashboardBlock {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .dashboardBlockHead {
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            .dashboardBlockHeading {
+                font-size: 13px;
+                font-weight: 600;
+                margin: 0;
+                color: var(--text-primary);
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+            }
+            .dashboardTiles {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 28px;
@@ -226,6 +246,9 @@
                 min-width: 150px;
             }
             .dashboardTile .dashboardLabel {
+                display: flex;
+                align-items: center;
+                gap: 6px;
                 font-size: 11px;
                 color: var(--text-muted);
                 text-transform: uppercase;
@@ -235,41 +258,270 @@
                 font-size: 24px;
                 font-weight: 600;
                 color: var(--text-primary);
-                font-variant-numeric: tabular-nums;
             }
             .dashboardTile .dashboardSub {
                 font-size: 12px;
                 color: var(--text-secondary);
             }
-            #dashboardLocomotion {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 28px;
+
+            /* Device identity is carried by a coloured chip/bar sitting NEXT to
+               the text, never by colouring the text itself (a mid-chroma series
+               hue is hard to read as body copy, and colour alone is not an
+               accessible channel). Each device wrapper just parks its hue in
+               --device-accent; every mark inside inherits it. */
+            .deviceGarmin { --device-accent: var(--series-garmin); }
+            .deviceFitbit { --device-accent: var(--series-fitbit); }
+            .devicePolar  { --device-accent: var(--series-polar); }
+            .deviceChip {
+                width: 10px;
+                height: 10px;
+                border-radius: 3px;
+                background: var(--device-accent);
+                flex: none;
             }
-            .locomotionGroup {
+
+            .badge-provisional {
+                background: transparent;
+                color: var(--text-muted);
+                border: 1px dashed var(--text-muted);
+            }
+
+            /* Ranked prevalence headline: worst device first and visually
+               dominant, rather than a symmetric Garmin/Fitbit pair that implies
+               the two are equally implicated. */
+            .rankList {
                 display: flex;
                 flex-direction: column;
-                gap: 8px;
+                gap: 12px;
             }
-            .locomotionHeading {
+            .rankRow {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                flex-wrap: wrap;
+            }
+            .rankName {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text-primary);
+                flex: none;
+                width: 84px;
+            }
+            .rankValue {
+                font-size: 26px;
+                font-weight: 600;
+                color: var(--text-primary);
+                flex: none;
+                width: 108px;
+            }
+            .rankRow.rankLead .rankValue { font-size: 42px; }
+            /* Fixed track width, not a flexible one: two rows whose tracks were
+               sized by whatever space their labels left over would draw the same
+               percentage at two different lengths, which is exactly the
+               comparison this block exists to make. */
+            .rankBarTrack {
+                flex: none;
+                width: 220px;
+                height: 8px;
+                border-radius: 999px;
+                background: var(--gridline);
+                overflow: hidden;
+            }
+            .rankDeviceName { margin-left: auto; }
+            .rankRow.rankLead .rankBarTrack { height: 12px; }
+            .rankBarFill {
+                height: 100%;
+                border-radius: 999px;
+                background: var(--device-accent);
+            }
+            .rankCaption {
+                font-size: 12px;
+                color: var(--text-secondary);
+                white-space: nowrap;
+            }
+            .rankDeviceName {
+                font-size: 11px;
+                color: var(--text-muted);
+                white-space: nowrap;
+            }
+
+            /* Per-device grouping for the failure-mode and TRIMP-error blocks:
+               the two devices' numbers must never read as one merged set. */
+            .deviceGroups {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 20px;
+            }
+            .deviceGroup {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                flex: 1 1 280px;
+                min-width: 240px;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 12px 14px;
+            }
+            .deviceGroupHeading {
+                display: flex;
+                align-items: center;
+                gap: 6px;
                 font-size: 13px;
                 font-weight: 600;
                 margin: 0;
                 color: var(--text-primary);
+            }
+            .modeRows {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .modeRow {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .modeLabel {
+                font-size: 12px;
+                color: var(--text-secondary);
+                min-width: 104px;
+            }
+            .modeBarTrack {
+                flex: 1 1 auto;
+                min-width: 40px;
+                height: 6px;
+                border-radius: 999px;
+                background: var(--gridline);
+                overflow: hidden;
+            }
+            .modeBarFill {
+                height: 100%;
+                border-radius: 999px;
+                background: var(--device-accent);
+            }
+            .modeValue {
+                font-size: 12px;
+                color: var(--text-primary);
+                font-variant-numeric: tabular-nums;
+                min-width: 68px;
+                text-align: right;
+            }
+
+            /* Hand-rolled inline SVG trend chart - no charting library, no CDN,
+               the page stays fully offline/static. */
+            .trendChartWrap {
+                width: 100%;
+                overflow-x: auto;
+            }
+            .trendChart {
+                display: block;
+                width: 100%;
+                /* Capped at the viewBox's own width: with height:auto the SVG
+                   keeps its 3:1 ratio, so an uncapped full-width chart grows
+                   ~380px tall on a wide desktop and reads as mostly empty
+                   space, especially while only a few weeks have data. */
+                max-width: 720px;
+                min-width: 340px;
+                height: auto;
+            }
+            .trendChart .chartGrid { stroke: var(--gridline); stroke-width: 1; }
+            .trendChart .chartZero { stroke: var(--baseline); stroke-width: 1; }
+            .trendChart .chartTick {
+                fill: var(--text-muted);
+                font-size: 10px;
+                font-family: inherit;
+            }
+            .trendChart .trendLine {
+                fill: none;
+                stroke: var(--device-accent);
+                stroke-width: 2;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .trendChart .trendDot {
+                fill: var(--device-accent);
+                stroke: var(--surface-1);
+                stroke-width: 2;
+            }
+            .trendChart .trendHit { fill: transparent; }
+            .chartLegend {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+            .legendItem {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 12px;
+                color: var(--text-secondary);
+            }
+            .legendSwatch {
+                width: 14px;
+                height: 3px;
+                border-radius: 2px;
+                background: var(--device-accent);
+                flex: none;
+            }
+
+            .dashboardTableWrap {
+                width: 100%;
+                overflow-x: auto;
+            }
+            .dashboardTable {
+                border-collapse: collapse;
+                width: 100%;
+                min-width: 520px;
+                font-size: 12px;
+            }
+            .dashboardTable th,
+            .dashboardTable td {
+                text-align: left;
+                padding: 8px 14px 8px 0;
+                border-bottom: 1px solid var(--border);
+                vertical-align: top;
+                white-space: nowrap;
+            }
+            .dashboardTable thead th {
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--text-muted);
                 text-transform: uppercase;
                 letter-spacing: 0.03em;
             }
-            .locomotionTiles {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 28px;
+            .dashboardTable tbody th {
+                display: table-cell;
+                font-weight: 600;
+                color: var(--text-primary);
             }
-            #dashboardCaveat {
+            .dashboardTable tbody td {
+                color: var(--text-secondary);
+                font-variant-numeric: tabular-nums;
+            }
+            .dashboardTable .deviceCell {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .dashboardTable tr.groupStart th,
+            .dashboardTable tr.groupStart td {
+                border-top: 1px solid var(--border);
+            }
+
+            .dashboardCaveat {
                 font-size: 11px;
                 color: var(--text-muted);
+            }
+            #dashboardCaveat {
                 border-top: 1px solid var(--border);
-                padding-top: 8px;
-                margin-top: 4px;
+                padding-top: 10px;
+            }
+            .dashboardEmpty {
+                font-size: 13px;
+                color: var(--text-secondary);
             }
 
             /* Phone-width layout: stack each run card into a single column
@@ -325,13 +577,36 @@
                     text-align: center;
                 }
 
-                #dashboard { padding: 14px 16px; }
-                #dashboardTiles { gap: 18px 20px; }
+                #dashboard { padding: 14px 16px; gap: 16px; }
+                .dashboardTiles { gap: 16px 20px; }
                 .dashboardTile { min-width: 128px; }
                 .dashboardTile .dashboardValue { font-size: 22px; }
 
-                #dashboardLocomotion { gap: 18px 20px; }
-                .locomotionTiles { gap: 18px 20px; }
+                /* One device group per row - side-by-side 240px groups would
+                   otherwise force a horizontal squeeze on a phone. */
+                .deviceGroups { gap: 12px; }
+                .deviceGroup { flex-basis: 100%; min-width: 0; }
+
+                /* The bar and its caption drop to their own full-width lines
+                   under the name + value, so a long caption ("2 of 3 3-way
+                   runs") never has to share a row with a 42px number. */
+                .rankRow { row-gap: 6px; }
+                .rankRow.rankLead .rankValue { font-size: 34px; }
+                .rankBarTrack { order: 3; width: 100%; }
+                .rankCaption { order: 4; flex-basis: 100%; white-space: normal; }
+                .rankDeviceName { order: 5; flex-basis: 100%; margin-left: 0; white-space: normal; }
+
+                .modeLabel { min-width: 92px; }
+                .modeValue { min-width: 62px; }
+
+                /* Wide content scrolls inside its own wrapper rather than
+                   pushing the page body sideways. */
+                .dashboardTable { min-width: 460px; }
+                /* Let the chart scroll sideways in its wrapper rather than
+                   shrink to fit: the SVG scales as one piece, so a 340px-wide
+                   render shrinks the axis text to ~5px along with everything
+                   else. Scrolling keeps it readable, same as the tables. */
+                .trendChart { min-width: 600px; }
             }
         </style>
     </head>
@@ -346,23 +621,58 @@
         <details class="collapsibleSection" open>
             <summary>Summary Dashboard</summary>
             <section id="dashboard">
-                <div id="dashboardTiles"></div>
-                <div id="dashboardLocomotion">
-                    <div class="locomotionGroup">
-                        <h3 class="locomotionHeading">Walking</h3>
-                        <div class="locomotionTiles" id="locomotionTilesWalking"></div>
+                <div class="dashboardBlock">
+                    <div class="dashboardBlockHead">
+                        <h3 class="dashboardBlockHeading">Suspected HR Failures</h3>
+                        <span id="dashboardProvisional"></span>
                     </div>
-                    <div class="locomotionGroup">
-                        <h3 class="locomotionHeading">Running</h3>
-                        <div class="locomotionTiles" id="locomotionTilesRunning"></div>
+                    <div id="dashboardHeadline"></div>
+                    <div class="dashboardCaveat" id="dashboardScope"></div>
+                </div>
+
+                <div class="dashboardBlock">
+                    <h3 class="dashboardBlockHeading">Failure Modes</h3>
+                    <div class="deviceGroups" id="dashboardModes"></div>
+                </div>
+
+                <div class="dashboardBlock">
+                    <h3 class="dashboardBlockHeading">Training-Load (TRIMP) Error vs Polar</h3>
+                    <div class="deviceGroups" id="dashboardTrimp"></div>
+                    <details class="collapsibleSection">
+                        <summary>Weekly TRIMP error trend</summary>
+                        <div id="dashboardTrend"></div>
+                    </details>
+                </div>
+
+                <div class="dashboardBlock">
+                    <h3 class="dashboardBlockHeading">Sampling Rate &amp; Coverage</h3>
+                    <div class="dashboardTiles" id="dashboardCoverage"></div>
+                    <div class="dashboardCaveat">
+                        The headline figure is each device's <em>measured</em> median HR sampling rate &mdash; an observation,
+                        with no assumed standard behind it. The delivered share beneath it is measured against 1&nbsp;Hz, an
+                        assumed common baseline chosen so all three devices are judged on one yardstick; it is <em>not</em> any
+                        manufacturer's advertised rate, as neither Garmin nor Polar publish a real optical/ECG HR sampling-rate
+                        spec. The two numbers answer different questions and can diverge sharply: a device reading a full
+                        1&nbsp;Hz whenever it samples at all, but dropping out for half the run, shows 1&nbsp;Hz alongside a
+                        50% share &mdash; and that gap is the dropout.
                     </div>
                 </div>
-                <div id="dashboardCaveat">
-                    "Most common pace during lock", "avg HR error during lock", and "most common true HR" are
-                    derived from manually-reviewed cadence-lock flags (which device you judged suspect per run), not an
-                    automated per-instant detector, which doesn't exist yet. Each of those three is further split into
-                    walking vs. running using an 8:00 min/km pace threshold (8:00/km or slower counts as walking, faster
-                    counts as running).
+
+                <div class="dashboardBlock">
+                    <h3 class="dashboardBlockHeading">Effort Context for Suspected Runs</h3>
+                    <div class="dashboardTableWrap">
+                        <table class="dashboardTable" id="dashboardEffort"></table>
+                    </div>
+                </div>
+
+                <div id="dashboardCaveat" class="dashboardCaveat">
+                    Every number in this dashboard covers 3-way runs only (a wrist device plus a Polar H10 chest-strap
+                    reference); 2-way runs are excluded from all of it and appear only in the Activity Log below. Which
+                    runs count as suspect is still bounded by manual per-run review, not an automated per-instant
+                    detector, which doesn't exist yet. Effort context is split into walking vs. running using an 8:00
+                    min/km pace threshold (8:00/km or slower counts as walking, faster counts as running) applied to each
+                    device's own worst-disagreement pace bucket, and &ldquo;most common true HR&rdquo; is the Polar
+                    H10's own recorded mean HR in that bucket.
                 </div>
             </section>
         </details>
@@ -415,17 +725,13 @@
                 return `+${Math.abs(diff).toFixed(1)} TRIMP (${brand})`;
             }
 
-            function trimpPctDifferenceLabel(pct) {
-                if (pct === null || pct === undefined || isNaN(pct)) return '—';
-                const brand = pct >= 0 ? 'Garmin' : 'Fitbit';
-                return `${Math.abs(pct).toFixed(1)}% (${brand})`;
-            }
-
             // Bland-Altman-style % difference: uses the mean of both devices as
             // the denominator (not either device individually), so it stays
             // consistent with the "no presumed reference device" rule while
-            // still being expressible as a percentage. Shared by the dashboard's
-            // aggregate weekly stat and each run card's compact per-run display.
+            // still being expressible as a percentage. Now used only by 2-way run
+            // cards in the Activity Log - the Summary Dashboard is anchored to
+            // the Polar H10 reference and never compares the two wrist devices
+            // against each other.
             function blandAltmanPctDiff(garmin, fitbit) {
                 if (garmin === null || garmin === undefined || isNaN(garmin) || fitbit === null || fitbit === undefined || isNaN(fitbit)) return null;
                 const mean = (garmin + fitbit) / 2;
@@ -434,8 +740,8 @@
             }
 
             // Compact per-run-card TRIMP Difference stat: the existing signed
-            // point-difference label, plus (when computable) the same
-            // Bland-Altman % used by the dashboard, appended with a "·"
+            // point-difference label, plus (when computable) the
+            // Bland-Altman % above, appended with a "·"
             // separator and shown as a positive magnitude (the point-difference
             // part right before it already conveys the sign/brand).
             function trimpDifferenceStatValue(run) {
@@ -461,17 +767,24 @@
                 negative: 'Accurate HR',
             };
 
-            // One badge per device (garmin_flag/fitbit_flag are independent -
+            // One badge per device (garmin_flags/fitbit_flags are independent -
             // a single run can show a cadence-lock verdict on one device and a
             // blunder on the other, so a single combined badge can't express
             // both). deviceName prefixes the verdict since the badge alone
-            // doesn't otherwise say which device it's about.
-            function deviceBadge(deviceName, flag) {
+            // doesn't otherwise say which device it's about. flags is now an
+            // array - "unreviewed"/"negative" are singleton states (see
+            // publish_run.normalize_flags), but one or more positive_* values
+            // can co-occur, in which case all of their labels are shown,
+            // comma-separated, in one badge rather than dropping any.
+            function deviceBadge(deviceName, flags) {
                 const span = document.createElement('span');
-                const cls = flag && flag.startsWith('positive') ? 'badge-positive'
-                    : flag === 'negative' ? 'badge-negative'
+                const list = Array.isArray(flags) ? flags : [];
+                const cls = list.some(f => f && f.startsWith('positive')) ? 'badge-positive'
+                    : list[0] === 'negative' ? 'badge-negative'
                     : 'badge-unreviewed';
-                const verdict = FLAG_VERDICT_LABELS[flag] || 'Unreviewed';
+                const verdict = list.length
+                    ? list.map(f => FLAG_VERDICT_LABELS[f] || 'Unreviewed').join(', ')
+                    : 'Unreviewed';
                 const label = deviceName ? `${deviceName}: ${verdict}` : verdict;
                 span.className = `badge ${cls}`;
                 span.appendChild(document.createTextNode(label));
@@ -550,8 +863,8 @@
 
                 const badges = document.createElement('div');
                 badges.className = 'runBadges';
-                badges.appendChild(deviceBadge(run.garmin_device_name, run.garmin_flag));
-                badges.appendChild(deviceBadge(run.fitbit_device_name, run.fitbit_flag));
+                badges.appendChild(deviceBadge(run.garmin_device_name, run.garmin_flags));
+                badges.appendChild(deviceBadge(run.fitbit_device_name, run.fitbit_flags));
                 if (hasPolarReference) {
                     badges.appendChild(referenceBadge());
                 }
@@ -649,173 +962,296 @@
                 return (v === null || v === undefined || isNaN(v)) ? '—' : `${v.toFixed(1)} bpm`;
             }
 
-            function formatTrimpPerWeek(v) {
-                return (v === null || v === undefined || isNaN(v)) ? '—' : v.toFixed(1);
+            function isNum(v) {
+                return v !== null && v !== undefined && v !== '' && !isNaN(v);
             }
 
-            function computeDashboardStats(manifest) {
-                const totalRuns = manifest.length;
+            function meanOf(values) {
+                return values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
+            }
 
-                const isPositive = (flag) => Boolean(flag) && flag.startsWith('positive');
-                const positiveRuns = manifest.filter(run => isPositive(run.garmin_flag) || isPositive(run.fitbit_flag));
-                const positivePct = totalRuns ? (positiveRuns.length / totalRuns) * 100 : null;
+            // Median, not mean, for aggregating per-run sample rates: one
+            // badly-gapped run shouldn't drag the "typical rate" number, and the
+            // per-run value being aggregated is itself already a median
+            // (analysis.median_sample_rate_hz).
+            function medianOf(values) {
+                if (!values.length) return null;
+                const sorted = values.slice().sort((a, b) => a - b);
+                const mid = Math.floor(sorted.length / 2);
+                return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+            }
 
-                // Per-device prevalence: garmin_flag/fitbit_flag are
-                // independent, so a run with both positive counts toward
-                // both sides (same as the old positive_both behavior).
-                const garminSuspectedRuns = manifest.filter(run => isPositive(run.garmin_flag));
-                const fitbitSuspectedRuns = manifest.filter(run => isPositive(run.fitbit_flag));
-                const garminSuspectedPct = totalRuns ? (garminSuspectedRuns.length / totalRuns) * 100 : null;
-                const fitbitSuspectedPct = totalRuns ? (fitbitSuspectedRuns.length / totalRuns) * 100 : null;
+            // Plain Hz. An interval form ("1 / 2 s") reads ambiguously - it can
+            // be parsed as a rate or as half a second - so the unit that can
+            // only mean one thing wins, even for sub-1 Hz values.
+            function formatHz(hz) {
+                if (!isNum(hz) || hz <= 0) return '—';
+                // Trailing zeros stripped: 0.5 Hz, not 0.50 Hz; 1 Hz, not 1.00 Hz.
+                return `${Number(hz.toFixed(2))} Hz`;
+            }
 
-                // Symmetric with garmin/fitbitSuspected above: "suspected" means
-                // that run's garmin_flag is positive AND the device filling
-                // that slot is actually Polar (see publish_polar_run.py - the
-                // "garmin_hr slot" means "primary HR+cadence device", not
-                // literal Garmin hardware). Unlike the old single-flag scheme,
-                // this needs no dedicated "positive_polar" vocabulary value -
-                // any device in that slot can carry a normal positive_* verdict.
-                const polarSuspectedRuns = manifest.filter(run =>
-                    isPositive(run.garmin_flag) && run.garmin_device_name && run.garmin_device_name.toLowerCase().includes('polar')
-                );
-                const polarSuspectedPct = totalRuns ? (polarSuspectedRuns.length / totalRuns) * 100 : null;
+            // One decimal, for the sub-percent-resolution TRIMP error numbers -
+            // formatPercent()'s whole-percent rounding is right for prevalence
+            // and coverage but would flatten a 1.9% mean error to "2%".
+            function formatPercent1(v) {
+                return isNum(v) ? `${v.toFixed(1)}%` : '—';
+            }
 
-                // Tier 1: average |TRIMP difference| per distinct ISO week spanned
-                // by the dataset - a plain signed point gap (garmin - fitbit), not
-                // a percentage (no presumed reference device between the two).
-                const trimpDiffs = manifest
-                    .map(run => run.trimp_difference)
-                    .filter(v => v !== null && v !== undefined && !isNaN(v));
-                const weekKeys = new Set(
-                    manifest
-                        .map(run => run.start)
-                        .filter(Boolean)
-                        .map(start => isoWeekKey(new Date(start)))
-                );
-                const avgAbsTrimpDiffPerWeek = (trimpDiffs.length && weekKeys.size)
-                    ? trimpDiffs.reduce((sum, v) => sum + Math.abs(v), 0) / weekKeys.size
-                    : null;
+            function formatSignedPercent(v) {
+                if (!isNum(v)) return '—';
+                return `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}%`;
+            }
 
-                // Per-device average total TRIMP per distinct ISO week spanned
-                // by the dataset - same "sum ÷ distinct week count" pattern as
-                // avgAbsTrimpDiffPerWeek above, reusing the same weekKeys.
-                const garminTrimps = manifest
-                    .map(run => run.total_trimp_garmin)
-                    .filter(v => v !== null && v !== undefined && !isNaN(v));
-                const avgGarminTrimpPerWeek = (garminTrimps.length && weekKeys.size)
-                    ? garminTrimps.reduce((sum, v) => sum + v, 0) / weekKeys.size
-                    : null;
+            function pluralRuns(n) {
+                return n === 1 ? '1 run' : `${n} runs`;
+            }
 
-                const fitbitTrimps = manifest
-                    .map(run => run.total_trimp_fitbit)
-                    .filter(v => v !== null && v !== undefined && !isNaN(v));
-                const avgFitbitTrimpPerWeek = (fitbitTrimps.length && weekKeys.size)
-                    ? fitbitTrimps.reduce((sum, v) => sum + v, 0) / weekKeys.size
-                    : null;
+            // "Week 30 (Jul 20 – Jul 26)" is right above a run list; in a tile
+            // sub-line the dates alone are what identify the week being reported.
+            function shortWeekLabel(weekKey) {
+                if (!weekKey) return '—';
+                const { monday, sunday } = isoWeekRange(weekKey);
+                const fmt = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                return `${fmt(monday)} – ${fmt(sunday)}`;
+            }
 
-                // Bland-Altman-style average % TRIMP difference per week: parse
-                // each week separately, then take the mean of the weekly
-                // differences. For each ISO week, pool that week's Garmin and
-                // Fitbit TRIMP totals separately (sum across that week's runs),
-                // compute ONE Bland-Altman % from the two sums, then average
-                // those per-week percentages (equal weight per week) across all
-                // weeks with at least one valid pair. This avoids summing
-                // per-run percentages across an unrelated denominator (distinct
-                // week count) - see project history for why that was wrong.
-                // Sign is preserved through the average and only converted to
-                // |value| + device name at display time (same convention as
-                // trimpDifferenceLabel()), because it's needed to pick the brand.
-                const weekGroups = groupRunsByIsoWeek(manifest);
-                const perWeekPct = [];
-                for (const runsInWeek of weekGroups.values()) {
-                    const validRuns = runsInWeek.filter(run =>
-                        run.total_trimp_garmin !== null && run.total_trimp_garmin !== undefined && !isNaN(run.total_trimp_garmin) &&
-                        run.total_trimp_fitbit !== null && run.total_trimp_fitbit !== undefined && !isNaN(run.total_trimp_fitbit)
-                    );
-                    if (!validRuns.length) continue;
-                    const sumGarmin = validRuns.reduce((sum, run) => sum + run.total_trimp_garmin, 0);
-                    const sumFitbit = validRuns.reduce((sum, run) => sum + run.total_trimp_fitbit, 0);
-                    const pct = blandAltmanPctDiff(sumGarmin, sumFitbit);
-                    if (pct !== null && pct !== undefined && !isNaN(pct)) perWeekPct.push(pct);
+            // The dashboard is anchored to the Polar H10 reference, so every
+            // aggregate below is computed over 3-way runs ONLY (a run has real
+            // reference data iff polar_device_name is set - the TRIMP fields
+            // can be null on a 3-way run and are not a reliable detector).
+            // 2-way runs still render normally in the Activity Log.
+            const DASHBOARD_DEVICES = [
+                { key: 'garmin', label: 'Garmin', className: 'deviceGarmin' },
+                { key: 'fitbit', label: 'Fitbit', className: 'deviceFitbit' },
+            ];
+
+            // Independent per-device failure modes: one run can carry several
+            // at once on the same device, so each is counted on its own and the
+            // three percentages are not expected to sum to the device's overall
+            // suspected rate.
+            const DASHBOARD_FAILURE_MODES = [
+                { key: 'positive_cadence', label: 'Cadence lock' },
+                { key: 'positive_lag', label: 'Lag artifact' },
+                { key: 'positive_blunder', label: 'Blunder' },
+            ];
+
+            // Not a visibility gate - the dashboard renders in full below this
+            // count. It only drives a "provisional" note so a thin sample isn't
+            // read (or shared) as a settled result.
+            const DASHBOARD_SHARING_GATE = 10;
+
+            const LOCOMOTIONS = [
+                { key: 'walking', label: 'Walking' },
+                { key: 'running', label: 'Running' },
+            ];
+
+            function isPositiveFlags(flags) {
+                return Array.isArray(flags) && flags.some(f => f && f.startsWith('positive'));
+            }
+
+            // Pooled signed % error for a set of runs: sum the device's TRIMP
+            // and the reference's TRIMP across the set first, then take ONE
+            // percentage of the pooled totals. Deliberately different maths from
+            // the mean-absolute-per-run error - this answers "did my week's
+            // total training load come out high or low", where a long run should
+            // count for more than a short one, so it is NOT an average of
+            // per-run percentages.
+            function pooledSignedPctError(runs, deviceKey) {
+                const valid = runs.filter(run => isNum(run[`total_trimp_${deviceKey}`]) && isNum(run.total_trimp_polar));
+                if (!valid.length) return { pct: null, runCount: 0 };
+                const sumDevice = valid.reduce((sum, run) => sum + run[`total_trimp_${deviceKey}`], 0);
+                const sumPolar = valid.reduce((sum, run) => sum + run.total_trimp_polar, 0);
+                if (sumPolar === 0) return { pct: null, runCount: valid.length };
+                return { pct: ((sumDevice - sumPolar) / sumPolar) * 100, runCount: valid.length };
+            }
+
+            // The ISO week immediately before weekKey. Derived by stepping back
+            // 7 days from that week's own Monday and re-deriving the key, rather
+            // than decrementing the week number - that keeps the year rollover
+            // correct (W01 back to the prior year's W52 or W53, whichever that
+            // year actually had).
+            function previousIsoWeekKey(weekKey) {
+                const monday = isoWeekRange(weekKey).monday;
+                // isoWeekRange() returns UTC midnights but isoWeekKey() reads
+                // local date parts - rebuild as a local date first, same reason
+                // as dashboardWeekSpan() below.
+                const prior = new Date(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() - 7);
+                return isoWeekKey(prior);
+            }
+
+            // Every ISO week from the first published run to the later of the
+            // last published run and the current week - INCLUDING weeks with no
+            // 3-way run. Those weeks are what the trend chart draws as genuine
+            // breaks in the line (PROJECT_DIRECTIVE.md #1: gaps in sensor
+            // reporting are features, never interpolated away).
+            function dashboardWeekSpan(runs, currentWeekKey) {
+                const keys = runs.map(run => run.start).filter(Boolean).map(start => isoWeekKey(new Date(start)));
+                if (!keys.length) return [];
+                // ISO keys are "YYYY-Www" with both parts zero-padded, so plain
+                // string ordering is chronological ordering.
+                let minKey = keys[0];
+                let maxKey = keys[0];
+                for (const key of keys) {
+                    if (key < minKey) minKey = key;
+                    if (key > maxKey) maxKey = key;
                 }
-                const avgSignedTrimpPctDiffPerWeek = perWeekPct.length
-                    ? perWeekPct.reduce((sum, v) => sum + v, 0) / perWeekPct.length
-                    : null;
+                if (currentWeekKey > maxKey) maxKey = currentWeekKey;
 
-                // Tier 2: aggregated only across manually-flagged-suspicious runs,
-                // split into walking vs. running by each run's own
-                // worst_pace_bucket (8:00 min/km threshold - see
-                // paceBucketLocomotion()). Runs with no worst_pace_bucket, or a
-                // bucket faster than any threshold-adjacent bucket, are simply
-                // excluded from both splits.
-                const walkingRuns = positiveRuns.filter(run => paceBucketLocomotion(run.worst_pace_bucket) === 'walking');
-                const runningRuns = positiveRuns.filter(run => paceBucketLocomotion(run.worst_pace_bucket) === 'running');
-
-                function tier2StatsFor(runs) {
-                    const paceBuckets = runs.map(run => run.worst_pace_bucket).filter(Boolean);
-                    const paceMode = modeOf(paceBuckets);
-
-                    const gaps = runs
-                        .map(run => run.worst_pace_bucket_gap_bpm)
-                        .filter(v => v !== null && v !== undefined && !isNaN(v));
-                    const avgHrErrorDuringLock = gaps.length
-                        ? gaps.reduce((sum, v) => sum + v, 0) / gaps.length
-                        : null;
-
-                    // "True" HR = the device NOT flagged positive for that run,
-                    // only when exactly one side is positive and the other
-                    // negative (both positive/both negative/either unreviewed
-                    // excluded - no presumed-accurate side to pick). Approximate
-                    // proxy bounded by manual review accuracy, not automated
-                    // per-instant detection. Matches
-                    // recompute_dashboard_stats.py's _non_suspect_true_hr, which
-                    // is what actually computed worst_bucket_true_hr_bpm.
-                    const trueHrBuckets = runs
-                        .filter(run =>
-                            (isPositive(run.garmin_flag) && run.fitbit_flag === 'negative') ||
-                            (isPositive(run.fitbit_flag) && run.garmin_flag === 'negative')
-                        )
-                        .map(run => run.worst_bucket_true_hr_bpm)
-                        .filter(v => v !== null && v !== undefined && !isNaN(v))
-                        .map(bpmBucketLabel);
-                    const trueHrMode = modeOf(trueHrBuckets);
-
-                    return {
-                        mostCommonPaceBucket: paceMode ? paceMode.value : null,
-                        avgHrErrorDuringLock,
-                        mostCommonTrueHrBucket: trueHrMode ? trueHrMode.value : null,
-                    };
+                const span = [];
+                const cursor = new Date(isoWeekRange(minKey).monday);
+                for (let i = 0; i < 520; i++) {
+                    // isoWeekKey() reads local date parts, but isoWeekRange()
+                    // hands back UTC midnights - west of Greenwich those are the
+                    // previous local day, which would shift every key back a
+                    // week. Rebuild a local date from the UTC parts first.
+                    const key = isoWeekKey(new Date(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate()));
+                    span.push(key);
+                    if (key === maxKey) break;
+                    cursor.setUTCDate(cursor.getUTCDate() + 7);
                 }
+                return span;
+            }
 
-                const walkingStats = tier2StatsFor(walkingRuns);
-                const runningStats = tier2StatsFor(runningRuns);
-
+            // Effort context for ONE device x ONE locomotion cell, using only
+            // that device's own vs-Polar fields. The walking/running split is
+            // driven by the device's own worst-disagreement bucket, so the two
+            // devices can (and do) land in different cells for the same run.
+            function effortCellStats(positiveRuns, deviceKey, locomotion) {
+                const runs = positiveRuns.filter(run => paceBucketLocomotion(run[`${deviceKey}_vs_polar_worst_bucket`]) === locomotion);
+                const paceMode = modeOf(runs.map(run => run[`${deviceKey}_vs_polar_worst_bucket`]).filter(Boolean));
+                const gaps = runs.map(run => run[`${deviceKey}_vs_polar_gap_bpm`]).filter(isNum);
+                // Polar's own recorded mean HR in that bucket - a real reading
+                // from the reference strap, not a "the other wrist device was
+                // probably right" proxy.
+                const trueHrMode = modeOf(runs.map(run => run[`${deviceKey}_vs_polar_true_hr_bpm`]).filter(isNum).map(bpmBucketLabel));
                 return {
-                    totalRuns,
-                    positiveCount: positiveRuns.length,
-                    positivePct,
-                    garminSuspectedPct,
-                    fitbitSuspectedPct,
-                    polarSuspectedPct,
-                    avgAbsTrimpDiffPerWeek,
-                    avgGarminTrimpPerWeek,
-                    avgFitbitTrimpPerWeek,
-                    avgSignedTrimpPctDiffPerWeek,
-                    mostCommonPaceBucketWalking: walkingStats.mostCommonPaceBucket,
-                    mostCommonPaceBucketRunning: runningStats.mostCommonPaceBucket,
-                    avgHrErrorDuringLockWalking: walkingStats.avgHrErrorDuringLock,
-                    avgHrErrorDuringLockRunning: runningStats.avgHrErrorDuringLock,
-                    mostCommonTrueHrBucketWalking: walkingStats.mostCommonTrueHrBucket,
-                    mostCommonTrueHrBucketRunning: runningStats.mostCommonTrueHrBucket,
+                    runCount: runs.length,
+                    mostCommonPaceBucket: paceMode ? paceMode.value : null,
+                    avgHrErrorBpm: meanOf(gaps),
+                    mostCommonTrueHrBucket: trueHrMode ? trueHrMode.value : null,
                 };
             }
 
-            function buildDashboardTile(label, value, sub) {
+            function computeDashboardModel(manifest) {
+                const runs = Array.isArray(manifest) ? manifest : [];
+                const totalRuns = runs.length;
+                const threeWayRuns = runs.filter(run => run.polar_device_name);
+                const totalThreeWay = threeWayRuns.length;
+
+                // Headline signed error reports the LAST COMPLETE calendar week,
+                // not the in-progress one. The current week is partial by
+                // definition - on a Monday it is empty, and mid-week it is a
+                // half-finished total that reads as a real trend when it isn't.
+                // The training programme also progresses load per calendar week,
+                // so a whole week is the unit that actually means something.
+                // (The trend chart below still spans every week, current one
+                // included - there a partial week is legible in context.)
+                const currentWeekKey = isoWeekKey(new Date());
+                const reportedWeekKey = previousIsoWeekKey(currentWeekKey);
+                const threeWayByWeek = groupRunsByIsoWeek(threeWayRuns);
+                const reportedWeekRuns = threeWayByWeek.get(reportedWeekKey) || [];
+                const weekKeys = dashboardWeekSpan(runs, currentWeekKey);
+
+                const devices = DASHBOARD_DEVICES.map(device => {
+                    const flagsOf = (run) => run[`${device.key}_flags`];
+                    const positiveRuns = threeWayRuns.filter(run => isPositiveFlags(flagsOf(run)));
+
+                    const modes = DASHBOARD_FAILURE_MODES.map(mode => {
+                        const count = threeWayRuns.filter(run => Array.isArray(flagsOf(run)) && flagsOf(run).indexOf(mode.key) !== -1).length;
+                        return {
+                            label: mode.label,
+                            count,
+                            pct: totalThreeWay ? (count / totalThreeWay) * 100 : null,
+                        };
+                    });
+
+                    // Mean absolute % error, one percentage per run, equal
+                    // weight per run: "how far off is any given run likely to
+                    // be", which pooled weekly totals can hide when a positive
+                    // and a negative run cancel out.
+                    const perRunAbsPct = threeWayRuns.map(run => {
+                        const polar = run.total_trimp_polar;
+                        const diff = run[`trimp_difference_${device.key}_polar`];
+                        if (!isNum(polar) || polar === 0 || !isNum(diff)) return null;
+                        return (Math.abs(diff) / polar) * 100;
+                    }).filter(isNum);
+
+                    const coverage = threeWayRuns.map(run => run[`${device.key}_coverage_pct`]).filter(isNum);
+                    const rates = threeWayRuns
+                        .map(run => run[`${device.key}_sample_rate_hz`])
+                        .filter(hz => isNum(hz) && hz > 0);
+                    const named = threeWayRuns.find(run => run[`${device.key}_device_name`]);
+
+                    const effort = {};
+                    for (const locomotion of LOCOMOTIONS) {
+                        effort[locomotion.key] = effortCellStats(positiveRuns, device.key, locomotion.key);
+                    }
+
+                    return {
+                        key: device.key,
+                        label: device.label,
+                        className: device.className,
+                        deviceName: named ? named[`${device.key}_device_name`] : null,
+                        suspectedCount: positiveRuns.length,
+                        suspectedPct: totalThreeWay ? (positiveRuns.length / totalThreeWay) * 100 : null,
+                        modes,
+                        meanAbsPctError: meanOf(perRunAbsPct),
+                        meanAbsPctErrorRuns: perRunAbsPct.length,
+                        reportedWeek: pooledSignedPctError(reportedWeekRuns, device.key),
+                        avgCoveragePct: meanOf(coverage),
+                        medianRateHz: medianOf(rates),
+                        effort,
+                    };
+                });
+
+                const weekly = weekKeys.map(weekKey => {
+                    const weekRuns = threeWayByWeek.get(weekKey) || [];
+                    const values = {};
+                    for (const device of DASHBOARD_DEVICES) {
+                        values[device.key] = pooledSignedPctError(weekRuns, device.key);
+                    }
+                    return { weekKey, runCount: weekRuns.length, values };
+                });
+
+                const polarCoverage = threeWayRuns.map(run => run.polar_coverage_pct).filter(isNum);
+                const polarRates = threeWayRuns
+                    .map(run => run.polar_sample_rate_hz)
+                    .filter(hz => isNum(hz) && hz > 0);
+                const polarNamed = threeWayRuns.find(run => run.polar_device_name);
+
+                return {
+                    totalRuns,
+                    totalThreeWay,
+                    currentWeekKey,
+                    reportedWeekKey,
+                    devices,
+                    weekly,
+                    polar: {
+                        label: 'Polar',
+                        className: 'devicePolar',
+                        deviceName: polarNamed ? polarNamed.polar_device_name : null,
+                        avgCoveragePct: meanOf(polarCoverage),
+                        medianRateHz: medianOf(polarRates),
+                    },
+                };
+            }
+
+            function buildDeviceChip(className) {
+                const chip = document.createElement('span');
+                chip.className = `deviceChip ${className}`;
+                return chip;
+            }
+
+            // Same tile shape as before (dashboardLabel / dashboardValue /
+            // dashboardSub), plus an optional device colour chip in the label so
+            // a tile can carry device identity without colouring its text.
+            function buildDashboardTile(label, value, sub, deviceClassName) {
                 const wrap = document.createElement('div');
                 wrap.className = 'dashboardTile';
 
                 const labelEl = document.createElement('div');
                 labelEl.className = 'dashboardLabel';
+                if (deviceClassName) labelEl.appendChild(buildDeviceChip(deviceClassName));
                 labelEl.appendChild(document.createTextNode(label));
 
                 const valueEl = document.createElement('div');
@@ -835,44 +1271,502 @@
                 return wrap;
             }
 
+            function buildDeviceGroup(device) {
+                const group = document.createElement('div');
+                group.className = `deviceGroup ${device.className}`;
+
+                const heading = document.createElement('h4');
+                heading.className = 'deviceGroupHeading';
+                heading.appendChild(buildDeviceChip(device.className));
+                heading.appendChild(document.createTextNode(device.deviceName || device.label));
+
+                group.appendChild(heading);
+                return group;
+            }
+
+            function buildEmptyNote(text) {
+                const el = document.createElement('div');
+                el.className = 'dashboardEmpty';
+                el.appendChild(document.createTextNode(text));
+                return el;
+            }
+
+            function renderDashboardScope(model) {
+                const provisional = document.getElementById('dashboardProvisional');
+                const scope = document.getElementById('dashboardScope');
+                provisional.innerHTML = '';
+                scope.innerHTML = '';
+
+                if (model.totalThreeWay < DASHBOARD_SHARING_GATE) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge badge-provisional';
+                    badge.appendChild(document.createTextNode(
+                        `Provisional — ${model.totalThreeWay} of ${DASHBOARD_SHARING_GATE} 3-way runs`
+                    ));
+                    provisional.appendChild(badge);
+                }
+
+                scope.appendChild(document.createTextNode(
+                    `Computed over the ${model.totalThreeWay} 3-way run${model.totalThreeWay === 1 ? '' : 's'} ` +
+                    `(wrist device + Polar H10 reference) out of ${model.totalRuns} published runs.`
+                ));
+            }
+
+            function renderDashboardHeadline(model) {
+                const host = document.getElementById('dashboardHeadline');
+                host.innerHTML = '';
+
+                if (!model.totalThreeWay) {
+                    host.appendChild(buildEmptyNote('No 3-way runs yet — publish a run with a Polar H10 reference to populate this dashboard.'));
+                    return;
+                }
+
+                // Worst first and visually dominant. Ties keep the declaration
+                // order in DASHBOARD_DEVICES rather than shuffling between
+                // renders, so a device doesn't appear to move for no reason.
+                const ranked = model.devices.slice().sort((a, b) => (b.suspectedPct || 0) - (a.suspectedPct || 0));
+
+                const list = document.createElement('div');
+                list.className = 'rankList';
+
+                ranked.forEach((device, index) => {
+                    const row = document.createElement('div');
+                    row.className = `rankRow ${device.className}${index === 0 ? ' rankLead' : ''}`;
+
+                    const name = document.createElement('div');
+                    name.className = 'rankName';
+                    name.appendChild(buildDeviceChip(device.className));
+                    name.appendChild(document.createTextNode(device.label));
+
+                    const value = document.createElement('div');
+                    value.className = 'rankValue';
+                    value.appendChild(document.createTextNode(formatPercent(device.suspectedPct)));
+
+                    const track = document.createElement('div');
+                    track.className = 'rankBarTrack';
+                    const fill = document.createElement('div');
+                    fill.className = 'rankBarFill';
+                    fill.style.width = `${Math.max(0, Math.min(100, device.suspectedPct || 0))}%`;
+                    track.appendChild(fill);
+
+                    const caption = document.createElement('div');
+                    caption.className = 'rankCaption';
+                    caption.appendChild(document.createTextNode(
+                        `${device.suspectedCount} of ${model.totalThreeWay} 3-way runs`
+                    ));
+
+                    row.appendChild(name);
+                    row.appendChild(value);
+                    row.appendChild(track);
+                    row.appendChild(caption);
+
+                    if (device.deviceName) {
+                        const deviceName = document.createElement('div');
+                        deviceName.className = 'rankDeviceName';
+                        deviceName.appendChild(document.createTextNode(device.deviceName));
+                        row.appendChild(deviceName);
+                    }
+
+                    list.appendChild(row);
+                });
+
+                host.appendChild(list);
+            }
+
+            function renderDashboardModes(model) {
+                const host = document.getElementById('dashboardModes');
+                host.innerHTML = '';
+
+                model.devices.forEach(device => {
+                    const group = buildDeviceGroup(device);
+                    const rows = document.createElement('div');
+                    rows.className = 'modeRows';
+
+                    device.modes.forEach(mode => {
+                        const row = document.createElement('div');
+                        row.className = 'modeRow';
+
+                        const label = document.createElement('div');
+                        label.className = 'modeLabel';
+                        label.appendChild(document.createTextNode(mode.label));
+
+                        const track = document.createElement('div');
+                        track.className = 'modeBarTrack';
+                        const fill = document.createElement('div');
+                        fill.className = 'modeBarFill';
+                        fill.style.width = `${Math.max(0, Math.min(100, mode.pct || 0))}%`;
+                        track.appendChild(fill);
+
+                        const value = document.createElement('div');
+                        value.className = 'modeValue';
+                        value.appendChild(document.createTextNode(
+                            model.totalThreeWay ? `${formatPercent(mode.pct)} (${mode.count})` : '—'
+                        ));
+
+                        row.appendChild(label);
+                        row.appendChild(track);
+                        row.appendChild(value);
+                        rows.appendChild(row);
+                    });
+
+                    group.appendChild(rows);
+                    host.appendChild(group);
+                });
+            }
+
+            function renderDashboardTrimp(model) {
+                const host = document.getElementById('dashboardTrimp');
+                host.innerHTML = '';
+
+                model.devices.forEach(device => {
+                    const group = buildDeviceGroup(device);
+                    const tiles = document.createElement('div');
+                    tiles.className = 'dashboardTiles';
+
+                    tiles.appendChild(buildDashboardTile(
+                        'Mean Error / Run',
+                        formatPercent1(device.meanAbsPctError),
+                        device.meanAbsPctErrorRuns
+                            ? `Absolute, averaged over ${pluralRuns(device.meanAbsPctErrorRuns)}`
+                            : 'No comparable runs yet'
+                    ));
+
+                    tiles.appendChild(buildDashboardTile(
+                        'Last Full Week, Net',
+                        formatSignedPercent(device.reportedWeek.pct),
+                        device.reportedWeek.runCount
+                            ? `Pooled totals vs Polar, ${pluralRuns(device.reportedWeek.runCount)} · ${shortWeekLabel(model.reportedWeekKey)}`
+                            : `No 3-way runs in ${shortWeekLabel(model.reportedWeekKey)}`
+                    ));
+
+                    group.appendChild(tiles);
+                    host.appendChild(group);
+                });
+            }
+
+            const SVG_NS = 'http://www.w3.org/2000/svg';
+
+            function svgEl(name, attrs) {
+                const el = document.createElementNS(SVG_NS, name);
+                Object.keys(attrs || {}).forEach(key => el.setAttribute(key, attrs[key]));
+                return el;
+            }
+
+            // Hand-rolled line chart: no charting library, no CDN, no external
+            // script - the published page has to work as a plain offline file.
+            // Both devices share one % scale (never a second y-axis) so they can
+            // be compared directly.
+            function buildTrendChart(model) {
+                const weeks = model.weekly;
+                const values = [];
+                weeks.forEach(week => model.devices.forEach(device => {
+                    const point = week.values[device.key];
+                    if (point && isNum(point.pct)) values.push(point.pct);
+                }));
+                if (!weeks.length || !values.length) return null;
+
+                const width = 720;
+                const height = 240;
+                const pad = { top: 16, right: 16, bottom: 32, left: 46 };
+                const plotW = width - pad.left - pad.right;
+                const plotH = height - pad.top - pad.bottom;
+
+                // Always include zero: the whole point of the chart is over- vs
+                // under-estimation against the reference. Headroom is only added
+                // on the side that actually has data, so an all-positive history
+                // sits on the zero line instead of inventing a negative floor
+                // gridline a few pixels below it.
+                const rawLo = Math.min(0, Math.min.apply(null, values));
+                const rawHi = Math.max(0, Math.max.apply(null, values));
+                const headroom = Math.max(rawHi - rawLo, 1) * 0.12;
+                let lo = rawLo < 0 ? rawLo - headroom : 0;
+                let hi = rawHi > 0 ? rawHi + headroom : 0;
+                if (hi === lo) { hi = 1; lo = -1; }
+
+                const xOf = (i) => weeks.length === 1
+                    ? pad.left + plotW / 2
+                    : pad.left + (plotW * i) / (weeks.length - 1);
+                const yOf = (v) => pad.top + plotH * (1 - (v - lo) / (hi - lo));
+
+                const svg = svgEl('svg', {
+                    class: 'trendChart',
+                    viewBox: `0 0 ${width} ${height}`,
+                    role: 'img',
+                    'aria-label': 'Weekly net TRIMP error versus the Polar H10 reference, per device. Weeks with no 3-way run are drawn as breaks in the line.',
+                });
+
+                const axisLabel = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
+
+                const ticks = [];
+                if (hi > 0) ticks.push({ v: hi, cls: 'chartGrid' });
+                if (lo < 0) ticks.push({ v: lo, cls: 'chartGrid' });
+                ticks.push({ v: 0, cls: 'chartZero' });
+
+                ticks.forEach(tick => {
+                    const y = yOf(tick.v);
+                    svg.appendChild(svgEl('line', {
+                        class: tick.cls, x1: pad.left, x2: width - pad.right, y1: y, y2: y,
+                    }));
+                    const text = svgEl('text', {
+                        class: 'chartTick', x: pad.left - 8, y, 'text-anchor': 'end', 'dominant-baseline': 'middle',
+                    });
+                    text.appendChild(document.createTextNode(tick.v === 0 ? '0%' : axisLabel(tick.v)));
+                    svg.appendChild(text);
+                });
+
+                // Label at most six weeks so the axis never collides with
+                // itself; the tooltip and the table below carry the rest.
+                const maxLabels = 6;
+                const step = weeks.length > maxLabels ? Math.ceil((weeks.length - 1) / (maxLabels - 1)) : 1;
+                weeks.forEach((week, i) => {
+                    if (i !== weeks.length - 1 && i % step !== 0) return;
+                    if (i !== weeks.length - 1 && weeks.length > 1 && (weeks.length - 1 - i) < step / 2) return;
+                    const text = svgEl('text', {
+                        class: 'chartTick', x: xOf(i), y: height - pad.bottom + 18, 'text-anchor': 'middle',
+                    });
+                    text.appendChild(document.createTextNode(`W${week.weekKey.split('-W')[1]}`));
+                    svg.appendChild(text);
+                });
+
+                model.devices.forEach(device => {
+                    const group = svgEl('g', { class: device.className });
+
+                    // Break the line at every week with no 3-way run: separate
+                    // <path> elements, never a segment bridging the gap.
+                    let segment = [];
+                    const flush = () => {
+                        if (segment.length > 1) {
+                            const d = segment.map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt[0].toFixed(1)} ${pt[1].toFixed(1)}`).join(' ');
+                            group.appendChild(svgEl('path', { class: 'trendLine', d }));
+                        }
+                        segment = [];
+                    };
+                    weeks.forEach((week, i) => {
+                        const point = week.values[device.key];
+                        if (point && isNum(point.pct)) segment.push([xOf(i), yOf(point.pct)]);
+                        else flush();
+                    });
+                    flush();
+
+                    // Dots are drawn for every week with data, so an isolated
+                    // week (no neighbours to draw a line to) is still visible.
+                    weeks.forEach((week, i) => {
+                        const point = week.values[device.key];
+                        if (!point || !isNum(point.pct)) return;
+                        const x = xOf(i);
+                        const y = yOf(point.pct);
+                        group.appendChild(svgEl('circle', { class: 'trendDot', cx: x, cy: y, r: 4 }));
+                        // Oversized transparent hit area - a 4px dot is far too
+                        // small to point at. Carries the native <title> tooltip.
+                        const hit = svgEl('circle', { class: 'trendHit', cx: x, cy: y, r: 11 });
+                        const title = svgEl('title', {});
+                        title.appendChild(document.createTextNode(
+                            `${formatWeekHeading(week.weekKey)} · ${device.label} ${formatSignedPercent(point.pct)} (${pluralRuns(point.runCount)})`
+                        ));
+                        hit.appendChild(title);
+                        group.appendChild(hit);
+                    });
+
+                    svg.appendChild(group);
+                });
+
+                return svg;
+            }
+
+            function buildTrendLegend(model) {
+                const legend = document.createElement('div');
+                legend.className = 'chartLegend';
+                model.devices.forEach(device => {
+                    const item = document.createElement('div');
+                    item.className = `legendItem ${device.className}`;
+                    const swatch = document.createElement('span');
+                    swatch.className = 'legendSwatch';
+                    item.appendChild(swatch);
+                    item.appendChild(document.createTextNode(device.label));
+                    legend.appendChild(item);
+                });
+                return legend;
+            }
+
+            // Table twin of the trend chart: the same numbers without relying on
+            // hover or on colour. Only weeks that actually have a 3-way run get
+            // a row - the empty weeks are the chart's breaks, and listing them
+            // as rows of dashes would bury the ones that carry data.
+            function buildTrendTable(model) {
+                const wrap = document.createElement('div');
+                wrap.className = 'dashboardTableWrap';
+
+                const table = document.createElement('table');
+                table.className = 'dashboardTable';
+
+                const thead = document.createElement('thead');
+                const headRow = document.createElement('tr');
+                ['Week', 'Runs'].concat(model.devices.map(d => d.label)).forEach(label => {
+                    const th = document.createElement('th');
+                    th.scope = 'col';
+                    th.appendChild(document.createTextNode(label));
+                    headRow.appendChild(th);
+                });
+                thead.appendChild(headRow);
+                table.appendChild(thead);
+
+                const tbody = document.createElement('tbody');
+                model.weekly.filter(week => week.runCount > 0).forEach(week => {
+                    const row = document.createElement('tr');
+                    const th = document.createElement('th');
+                    th.scope = 'row';
+                    th.appendChild(document.createTextNode(formatWeekHeading(week.weekKey)));
+                    row.appendChild(th);
+
+                    const runsCell = document.createElement('td');
+                    runsCell.appendChild(document.createTextNode(String(week.runCount)));
+                    row.appendChild(runsCell);
+
+                    model.devices.forEach(device => {
+                        const cell = document.createElement('td');
+                        cell.appendChild(document.createTextNode(formatSignedPercent(week.values[device.key].pct)));
+                        row.appendChild(cell);
+                    });
+                    tbody.appendChild(row);
+                });
+                table.appendChild(tbody);
+
+                wrap.appendChild(table);
+                return wrap;
+            }
+
+            function renderDashboardTrend(model) {
+                const host = document.getElementById('dashboardTrend');
+                host.innerHTML = '';
+
+                const chart = buildTrendChart(model);
+                if (!chart) {
+                    host.appendChild(buildEmptyNote(model.totalThreeWay
+                        ? 'No weekly TRIMP totals to trend yet.'
+                        : 'No 3-way runs yet — nothing to trend.'));
+                    return;
+                }
+
+                host.appendChild(buildTrendLegend(model));
+
+                const chartWrap = document.createElement('div');
+                chartWrap.className = 'trendChartWrap';
+                chartWrap.appendChild(chart);
+                host.appendChild(chartWrap);
+
+                host.appendChild(buildTrendTable(model));
+
+                const note = document.createElement('div');
+                note.className = 'dashboardCaveat';
+                note.appendChild(document.createTextNode(
+                    'One point per ISO week: that week\'s device TRIMP and Polar TRIMP pooled across its 3-way runs, ' +
+                    'then a single signed % of the pooled Polar total (positive = the device read the week heavier ' +
+                    'than the reference). Weeks with no 3-way run are left as breaks in the line, never interpolated ' +
+                    'or carried forward. Hover a point for its week and value.'
+                ));
+                host.appendChild(note);
+            }
+
+            function renderDashboardCoverage(model) {
+                const host = document.getElementById('dashboardCoverage');
+                host.innerHTML = '';
+
+                // Headline is the measured typical rate - a direct observation of
+                // the device, with no assumed baseline in it. The delivered-share
+                // % stays on the sub-line because the two genuinely differ: a
+                // device can read a full 1 Hz whenever it samples at all and
+                // still deliver only half the run, and that gap between the two
+                // numbers IS the dropout signal. Leading with the rate alone
+                // would hide it.
+                const entries = model.devices.concat([model.polar]);
+                entries.forEach(device => {
+                    const share = isNum(device.avgCoveragePct)
+                        ? `${formatPercent(device.avgCoveragePct)} of a 1 Hz baseline delivered`
+                        : 'No 3-way runs yet';
+                    host.appendChild(buildDashboardTile(
+                        device.label,
+                        formatHz(device.medianRateHz),
+                        device.deviceName ? `${device.deviceName} · ${share}` : share,
+                        device.className
+                    ));
+                });
+            }
+
+            function renderDashboardEffort(model) {
+                const table = document.getElementById('dashboardEffort');
+                table.innerHTML = '';
+
+                const thead = document.createElement('thead');
+                const headRow = document.createElement('tr');
+                ['Device', 'Effort', 'Most Common Pace', 'Avg HR Error vs Polar', 'Most Common True HR'].forEach(label => {
+                    const th = document.createElement('th');
+                    th.scope = 'col';
+                    th.appendChild(document.createTextNode(label));
+                    headRow.appendChild(th);
+                });
+                thead.appendChild(headRow);
+                table.appendChild(thead);
+
+                const tbody = document.createElement('tbody');
+                model.devices.forEach(device => {
+                    LOCOMOTIONS.forEach((locomotion, index) => {
+                        const cell = device.effort[locomotion.key];
+                        const row = document.createElement('tr');
+                        if (index === 0) row.className = 'groupStart';
+
+                        if (index === 0) {
+                            // One rowspan'd device cell per device keeps the two
+                            // devices' numbers visibly separate rather than
+                            // merged into one undifferentiated block.
+                            const th = document.createElement('th');
+                            th.scope = 'rowgroup';
+                            th.rowSpan = LOCOMOTIONS.length;
+                            const inner = document.createElement('span');
+                            inner.className = `deviceCell ${device.className}`;
+                            inner.appendChild(buildDeviceChip(device.className));
+                            inner.appendChild(document.createTextNode(device.label));
+                            th.appendChild(inner);
+                            row.appendChild(th);
+                        }
+
+                        const effortCell = document.createElement('td');
+                        effortCell.appendChild(document.createTextNode(
+                            `${locomotion.label} (${pluralRuns(cell.runCount)})`
+                        ));
+                        row.appendChild(effortCell);
+
+                        [
+                            cell.mostCommonPaceBucket || '—',
+                            formatBpm(cell.avgHrErrorBpm),
+                            cell.mostCommonTrueHrBucket || '—',
+                        ].forEach(value => {
+                            const td = document.createElement('td');
+                            td.appendChild(document.createTextNode(value));
+                            row.appendChild(td);
+                        });
+
+                        tbody.appendChild(row);
+                    });
+                });
+                table.appendChild(tbody);
+            }
+
             function renderDashboard(manifest) {
                 const section = document.getElementById('dashboard');
-                const tiles = document.getElementById('dashboardTiles');
-                const walkingTiles = document.getElementById('locomotionTilesWalking');
-                const runningTiles = document.getElementById('locomotionTilesRunning');
 
                 if (!Array.isArray(manifest) || manifest.length === 0) {
                     section.classList.remove('visible');
                     return;
                 }
 
-                const stats = computeDashboardStats(manifest);
-                tiles.innerHTML = '';
-                walkingTiles.innerHTML = '';
-                runningTiles.innerHTML = '';
-
-                tiles.appendChild(buildDashboardTile('Total Runs', String(stats.totalRuns)));
-                tiles.appendChild(buildDashboardTile(
-                    'Prevalence of Cadence Lock',
-                    `${formatPercent(stats.positivePct)} (${stats.positiveCount}/${stats.totalRuns})`,
-                    `Garmin suspected: ${formatPercent(stats.garminSuspectedPct)} · Fitbit suspected: ${formatPercent(stats.fitbitSuspectedPct)} · Polar suspected: ${formatPercent(stats.polarSuspectedPct)}`
-                ));
-                tiles.appendChild(buildDashboardTile('Avg Garmin TRIMP / Week', formatTrimpPerWeek(stats.avgGarminTrimpPerWeek)));
-                tiles.appendChild(buildDashboardTile('Avg Fitbit TRIMP / Week', formatTrimpPerWeek(stats.avgFitbitTrimpPerWeek)));
-                tiles.appendChild(buildDashboardTile('Avg |TRIMP Difference| / Week', formatTrimpPerWeek(stats.avgAbsTrimpDiffPerWeek)));
-                tiles.appendChild(buildDashboardTile(
-                    'Avg % TRIMP Difference / Week',
-                    trimpPctDifferenceLabel(stats.avgSignedTrimpPctDiffPerWeek),
-                    "Bland-Altman % (mean of each week's pooled totals)"
-                ));
-
-                walkingTiles.appendChild(buildDashboardTile('Most Common Pace During Lock', stats.mostCommonPaceBucketWalking || '—'));
-                walkingTiles.appendChild(buildDashboardTile('Avg HR Error During Lock', formatBpm(stats.avgHrErrorDuringLockWalking)));
-                walkingTiles.appendChild(buildDashboardTile('Most Common "True" HR During Lock', stats.mostCommonTrueHrBucketWalking || '—'));
-
-                runningTiles.appendChild(buildDashboardTile('Most Common Pace During Lock', stats.mostCommonPaceBucketRunning || '—'));
-                runningTiles.appendChild(buildDashboardTile('Avg HR Error During Lock', formatBpm(stats.avgHrErrorDuringLockRunning)));
-                runningTiles.appendChild(buildDashboardTile('Most Common "True" HR During Lock', stats.mostCommonTrueHrBucketRunning || '—'));
+                const model = computeDashboardModel(manifest);
+                renderDashboardScope(model);
+                renderDashboardHeadline(model);
+                renderDashboardModes(model);
+                renderDashboardTrimp(model);
+                renderDashboardTrend(model);
+                renderDashboardCoverage(model);
+                renderDashboardEffort(model);
 
                 section.classList.add('visible');
             }

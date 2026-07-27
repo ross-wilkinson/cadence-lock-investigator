@@ -303,7 +303,7 @@ def fetch_and_publish_pair(garmin_client, google_client: httpx.Client, headers: 
         garmin_firmware_version=garmin_firmware_version, fitbit_firmware_version=fitbit_firmware_version,
     )
     payload = enrich_with_weather(payload)
-    return publish_run.write_run(payload, "unreviewed", "unreviewed")
+    return publish_run.write_run(payload, ["unreviewed"], ["unreviewed"])
 
 
 def main(argv=None):
@@ -371,7 +371,7 @@ def main(argv=None):
                 try:
                     entry = fetch_and_publish_pair(garmin_client, google_client, headers, activity, session, CACHE_DIR, garmin_device_map, polar_access_token)
                     published.append(activity_id)
-                    print(f"Published {activity_id} ({entry['start']} -> {entry['end']}), flag={entry['flag']}")
+                    print(f"Published {activity_id} ({entry['start']} -> {entry['end']}), garmin_flags={entry['garmin_flags']}, fitbit_flags={entry['fitbit_flags']}")
                     break
                 except GarminConnectTooManyRequestsError as e:
                     if attempt < args.max_retries:
