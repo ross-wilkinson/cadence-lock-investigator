@@ -24,6 +24,10 @@
                 --series-cadence:  #404040;
                 --series-pace:     #377eb8;
                 --series-polar:    #d95f02;
+                --series-elevation:      #a6761d;
+                --series-elevation-fill: rgba(166,118,29,0.16);
+                --series-grade:          #e7298a;
+                --series-gap:            #66a61e;
             }
             @media (prefers-color-scheme: dark) {
                 :root {
@@ -41,6 +45,10 @@
                     --series-cadence:  #f7f7f7;
                     --series-pace:     #377eb8;
                     --series-polar:    #d95f02;
+                    --series-elevation:      #d4a44c;
+                    --series-elevation-fill: rgba(212,164,76,0.14);
+                    --series-grade:          #f06eae;
+                    --series-gap:            #a5d840;
                 }
             }
 
@@ -87,9 +95,9 @@
             #graph {
                 flex: 0 0 auto;
                 width: 100%;
-                height: 60vh;
-                min-height: 360px;
-                max-height: 640px;
+                height: 68vh;
+                min-height: 420px;
+                max-height: 720px;
                 background: var(--surface-1);
                 border: 1px solid var(--border);
                 border-radius: 8px;
@@ -139,7 +147,7 @@
         <div id="loader">Fetching and aligning telemetry&hellip;</div>
         <div id="graph"></div>
         <div id="tableWrap"><table>
-            <thead><tr><th>Time</th><th id="thPrimaryHr">Garmin HR</th><th id="thFitbitHr">Fitbit HR</th><th id="thCadence">Garmin Cadence (SPM)</th><th id="thPolarHr" style="display:none;">Polar HR</th></tr></thead>
+            <thead><tr><th>Time</th><th id="thPrimaryHr">Garmin HR</th><th id="thFitbitHr">Fitbit HR</th><th id="thCadence">Garmin Cadence (SPM)</th><th id="thPolarHr" style="display:none;">Polar HR</th><th id="thElevation" style="display:none;">Elevation (m)</th><th id="thGrade" style="display:none;">Grade (%)</th></tr></thead>
             <tbody id="tableBody"></tbody>
         </table></div>
 
@@ -160,13 +168,38 @@
                     fitbit: cssVar('--series-fitbit'),
                     cadence: cssVar('--series-cadence'),
                     pace: cssVar('--series-pace'),
-                    polar: cssVar('--series-polar')
+                    polar: cssVar('--series-polar'),
+                    elevation: cssVar('--series-elevation'),
+                    elevationFill: cssVar('--series-elevation-fill'),
+                    grade: cssVar('--series-grade'),
+                    gap: cssVar('--series-gap')
                 };
             }
 
-            function buildLayout(t) {
+            function hasData(series) {
+                return Array.isArray(series) && series.some(v => v !== null && v !== undefined);
+            }
+
+            // Elevation's own axis range is deliberately NOT autoranged from
+            // zero: a terrain profile that always starts its fill at sea
+            // level would flatten most runs' real relief into a thin sliver
+            // at the top of the panel. Padding by 10% of the run's own
+            // elevation span (floor 5m, so a near-flat run doesn't get a
+            // razor-thin range either) keeps the fill visually meaningful
+            // while still filling to the bottom of the panel via tozeroy.
+            function elevationRange(elevationM) {
+                const values = (elevationM || []).filter(v => v !== null && v !== undefined);
+                if (!values.length) return null;
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                const pad = Math.max((max - min) * 0.1, 5);
+                return [min - pad, max + pad];
+            }
+
+            function buildLayout(t, data) {
+                const elevRange = elevationRange(data && data.elevation_m);
                 return {
-                    margin: { t: 16, r: 24, l: 56, b: 40 },
+                    margin: { t: 16, r: 56, l: 56, b: 40 },
                     paper_bgcolor: t.surface,
                     plot_bgcolor: t.surface,
                     font: { family: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: t.secondary, size: 12 },
@@ -178,24 +211,42 @@
                     },
                     xaxis: {
                         title: { text: 'Time', font: { color: t.muted } },
-                        anchor: 'y2',
+                        anchor: 'y3',
                         gridcolor: t.grid,
                         linecolor: t.baseline,
                         tickfont: { color: t.muted }
                     },
                     yaxis: {
                         title: { text: 'BPM / SPM', font: { color: t.muted } },
-                        domain: [0.34, 1],
+                        domain: [0.48, 1],
                         gridcolor: t.grid,
                         zerolinecolor: t.baseline,
                         tickfont: { color: t.muted }
                     },
                     yaxis2: {
                         title: { text: 'Pace (min/km)', font: { color: t.muted } },
-                        domain: [0, 0.22],
+                        domain: [0.26, 0.42],
                         autorange: 'reversed',
                         gridcolor: t.grid,
                         zerolinecolor: t.baseline,
+                        tickfont: { color: t.muted }
+                    },
+                    yaxis3: {
+                        title: { text: 'Elevation (m)', font: { color: t.muted } },
+                        domain: [0, 0.18],
+                        range: elevRange || undefined,
+                        gridcolor: t.grid,
+                        zerolinecolor: t.baseline,
+                        tickfont: { color: t.muted }
+                    },
+                    yaxis4: {
+                        title: { text: 'Grade (%)', font: { color: t.muted }, standoff: 8 },
+                        overlaying: 'y3',
+                        side: 'right',
+                        automargin: true,
+                        zeroline: true,
+                        zerolinecolor: t.baseline,
+                        showgrid: false,
                         tickfont: { color: t.muted }
                     },
                     hovermode: 'x unified',
@@ -207,8 +258,65 @@
                 return (speedMps || []).map(v => (v === null || v === undefined || v <= 0) ? null : (1000 / v) / 60);
             }
 
-            function hasData(series) {
-                return Array.isArray(series) && series.some(v => v !== null && v !== undefined);
+            // Grade (%), a distance-windowed elevation delta - never a
+            // per-sample time-windowed derivative, which at 1Hz is dominated
+            // by tiny-denominator noise rather than real terrain (see
+            // N_OF_1_STUDY_PROTOCOL.md Sec 5A). Centered (uses the nearest
+            // valid sample within [halfWindowMinM, halfWindowMaxM] on BOTH
+            // sides of i), not backward-only: Stage A's eventual production
+            // fit must stay causal-only (physiology review, same doc), but
+            // that constraint is about not leaking future data into a
+            // detector's prediction - it doesn't apply to this viewer chart,
+            // and centering removes a ~3-4s lag between a terrain feature and
+            // where it'd otherwise show up against the HR/pace traces next
+            // to it. Bounds verified against this project's own telemetry
+            // (sensor-engineering review, 2026-07-28): Garmin's directElevation
+            // is barometric (0.2m quantization, not GPS-altitude jitter) at a
+            // native ~4s / ~12.8m median cadence, so a window narrower than
+            // that native spacing (an earlier version used 15-20m one-sided)
+            // was mostly a no-op - it excluded almost every real sample
+            // rather than smoothing anything. 12.5m rejects the
+            // near-zero-distance pairs that produced +/-50%+ spikes (a
+            // denominator artifact, not sensor noise); 30m is comfortably
+            // past where the review found the residual becomes real terrain
+            // rather than noise (sd stopped dropping past ~25-40m single-
+            // sided). Only computed where BOTH sides have a real sample in
+            // range - consistent with the no-fill rule, a null here means
+            // "not enough real data to say", not 0%.
+            function computeGradePct(distanceM, elevationM, halfWindowMinM = 12.5, halfWindowMaxM = 30) {
+                const n = (distanceM || []).length;
+                const grade = new Array(n).fill(null);
+                const validIdx = [];
+                for (let i = 0; i < n; i++) {
+                    if (distanceM[i] !== null && distanceM[i] !== undefined &&
+                        elevationM[i] !== null && elevationM[i] !== undefined) {
+                        validIdx.push(i);
+                    }
+                }
+                const m = validIdx.length;
+                for (let k = 0; k < m; k++) {
+                    const i = validIdx[k];
+                    const di = distanceM[i];
+
+                    let jBack = null;
+                    for (let b = k - 1; b >= 0; b--) {
+                        const span = di - distanceM[validIdx[b]];
+                        if (span > halfWindowMaxM) break;
+                        if (span >= halfWindowMinM) { jBack = validIdx[b]; break; }
+                    }
+                    let jFwd = null;
+                    for (let f = k + 1; f < m; f++) {
+                        const span = distanceM[validIdx[f]] - di;
+                        if (span > halfWindowMaxM) break;
+                        if (span >= halfWindowMinM) { jFwd = validIdx[f]; break; }
+                    }
+
+                    if (jBack !== null && jFwd !== null) {
+                        const dSpan = distanceM[jFwd] - distanceM[jBack];
+                        grade[i] = ((elevationM[jFwd] - elevationM[jBack]) / dSpan) * 100;
+                    }
+                }
+                return grade;
             }
 
             function buildTraces(data, t) {
@@ -252,6 +360,32 @@
                         yaxis: 'y2',
                     }
                 ];
+                // Grade-Adjusted Pace - Garmin's own directGradeAdjustedSpeed,
+                // already shipped in every payload (main.py) but never
+                // plotted. Same units/axis as raw pace (same panel, y2) so a
+                // reader can directly see how much of the pace trace's
+                // wobble Garmin's own grade correction already accounts for.
+                // Also literally the M0 baseline candidate in the Aim 2
+                // metabolic-cost tournament (METABOLIC_MODEL_LITERATURE_REVIEW.md),
+                // so this is exactly the kind of model-input context this
+                // panel exists to surface. Dashed, not another marker style,
+                // to stay legible against the already-crowded pace panel.
+                if (hasData(data.grade_adjusted_speed_mps)) {
+                    traces.push({
+                        // Same sparse ~4s-cadence source as elevation/grade
+                        // (both directGradeAdjustedSpeed and directElevation
+                        // are per-record Garmin fields at that native rate) -
+                        // needs markers for the same reason grade does:
+                        // 'lines' alone draws nothing between isolated valid
+                        // points that never land on consecutive seconds.
+                        x: data.time, y: paceMinPerKm(data.grade_adjusted_speed_mps), name: `${primaryName} GAP (min/km)`,
+                        mode: 'lines+markers',
+                        line: { color: t.gap, width: 1, dash: 'dot' },
+                        marker: { size: 3 },
+                        connectgaps: false,
+                        yaxis: 'y2'
+                    });
+                }
                 // Polar H10 reference-device trace - only present on runs where one
                 // was worn alongside Garmin/Fitbit (see publish_reference_run.py).
                 if (hasData(data.polar_hr)) {
@@ -263,6 +397,36 @@
                         connectgaps: false
                     });
                 }
+                // Elevation/grade - the route-shape context a reader needs to
+                // judge the kinetic HR model's demand inputs (grade feeds the
+                // Aim 2 metabolic-cost tournament candidates directly - see
+                // N_OF_1_STUDY_PROTOCOL.md/METABOLIC_MODEL_LITERATURE_REVIEW.md).
+                // Only present on runs with real GPS/barometric telemetry
+                // (Garmin, or a manually-published Polar FIT run).
+                if (hasData(data.elevation_m) && hasData(data.distance_m)) {
+                    traces.push({
+                        x: data.time, y: data.elevation_m, name: 'Elevation (m)',
+                        mode: 'lines',
+                        line: { color: t.elevation, width: 1 },
+                        fill: 'tozeroy',
+                        fillcolor: t.elevationFill,
+                        connectgaps: false,
+                        yaxis: 'y3'
+                    });
+                    traces.push({
+                        // The distance-window requirement (computeGradePct)
+                        // makes valid points sparser than elevation itself -
+                        // markers keep isolated valid samples visible instead
+                        // of vanishing between gaps that are too short to
+                        // draw a connecting line segment.
+                        x: data.time, y: computeGradePct(data.distance_m, data.elevation_m), name: 'Grade (%)',
+                        mode: 'lines+markers',
+                        line: { color: t.grade, width: 1 },
+                        marker: { size: 3 },
+                        connectgaps: false,
+                        yaxis: 'y4'
+                    });
+                }
                 return traces;
             }
 
@@ -272,15 +436,21 @@
             function render() {
                 if (!latestData) return;
                 const t = theme();
-                Plotly.react('graph', buildTraces(latestData, t), buildLayout(t), { responsive: true });
+                Plotly.react('graph', buildTraces(latestData, t), buildLayout(t, latestData), { responsive: true });
             }
 
             function buildTable(data) {
                 const showPolar = hasData(data.polar_hr);
+                const showTerrain = hasData(data.elevation_m) && hasData(data.distance_m);
+                const gradePct = showTerrain ? computeGradePct(data.distance_m, data.elevation_m) : null;
                 const rows = data.time.map((time, i) => {
                     const fmt = (v) => (v === null || v === undefined) ? '&mdash;' : v;
+                    const fmtRound = (v) => (v === null || v === undefined) ? '&mdash;' : v.toFixed(1);
                     const polarCell = showPolar ? `<td>${fmt(data.polar_hr[i])}</td>` : '';
-                    return `<tr><td>${time}</td><td>${fmt(data.garmin_hr[i])}</td><td>${fmt(data.fitbit_hr[i])}</td><td>${fmt(data.cadence_spm[i])}</td>${polarCell}</tr>`;
+                    const terrainCells = showTerrain
+                        ? `<td>${fmtRound(data.elevation_m[i])}</td><td>${fmtRound(gradePct[i])}</td>`
+                        : '';
+                    return `<tr><td>${time}</td><td>${fmt(data.garmin_hr[i])}</td><td>${fmt(data.fitbit_hr[i])}</td><td>${fmt(data.cadence_spm[i])}</td>${polarCell}${terrainCells}</tr>`;
                 }).join('');
                 document.getElementById('tableBody').innerHTML = rows;
             }
@@ -340,6 +510,9 @@
                         const thPolar = document.getElementById('thPolarHr');
                         thPolar.textContent = `${polarName} HR`;
                         thPolar.style.display = polarPresent ? '' : 'none';
+                        const terrainPresent = hasData(data.elevation_m) && hasData(data.distance_m);
+                        document.getElementById('thElevation').style.display = terrainPresent ? '' : 'none';
+                        document.getElementById('thGrade').style.display = terrainPresent ? '' : 'none';
                         document.getElementById('subtitle').textContent = polarPresent
                             ? `${primaryName} vs. ${fitbitName} heart rate against stride cadence and pace, with ${polarName} as the reference device.`
                             : `${primaryName} vs. ${fitbitName} heart rate against stride cadence and pace.`;

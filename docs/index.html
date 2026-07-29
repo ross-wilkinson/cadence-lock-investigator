@@ -137,6 +137,10 @@
                 font-size: 12px;
                 color: var(--text-muted);
             }
+            .runCard .runWeather {
+                font-size: 12px;
+                color: var(--text-muted);
+            }
 
             .runCard .runStats {
                 display: flex;
@@ -709,6 +713,31 @@
                 return name || '—';
             }
 
+            // Static per-run context, not a device metric - the reason this is
+            // a plain muted text line under the date/duration rather than a
+            // runStat tile, which is reserved for per-device measurements.
+            // Round to whole numbers: the Open-Meteo lookup (weather.py) is
+            // already only hourly-resolution, so decimal precision here would
+            // be false precision. Elevation is appended to the same line
+            // (not a separate one) - it's base altitude (a physiological
+            // confound, same family as temperature/humidity), distinct from
+            // in-run hilliness, which the run detail page's grade panel
+            // already covers.
+            function formatWeather(run) {
+                const parts = [];
+                if (run.temperature_c !== null && run.temperature_c !== undefined) {
+                    let temp = `${Math.round(run.temperature_c)}°C`;
+                    if (run.humidity_pct !== null && run.humidity_pct !== undefined) {
+                        temp += ` · ${Math.round(run.humidity_pct)}% RH`;
+                    }
+                    parts.push(temp);
+                }
+                if (run.avg_elevation_m !== null && run.avg_elevation_m !== undefined) {
+                    parts.push(`${Math.round(run.avg_elevation_m)}m elev`);
+                }
+                return parts.length ? parts.join(' · ') : null;
+            }
+
             function formatTrimp(v, diffToPolar) {
                 if (v === null || v === undefined || isNaN(v)) return '—';
                 let label = `${v.toFixed(1)} TRIMP`;
@@ -836,6 +865,14 @@
 
                 meta.appendChild(dateEl);
                 meta.appendChild(durationEl);
+
+                const weatherLabel = formatWeather(run);
+                if (weatherLabel !== null) {
+                    const weatherEl = document.createElement('div');
+                    weatherEl.className = 'runWeather';
+                    weatherEl.appendChild(document.createTextNode(weatherLabel));
+                    meta.appendChild(weatherEl);
+                }
 
                 const stats = document.createElement('div');
                 stats.className = 'runStats';

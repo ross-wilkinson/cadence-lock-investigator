@@ -22,7 +22,7 @@ import pandas as pd
 from garminconnect import Garmin, GarminConnectTooManyRequestsError
 
 import publish_run
-from main import fetch_fitbit_hr_df, merge_telemetry, parse_garmin_metrics, refresh_google_token
+from main import enrich_with_weather, fetch_fitbit_hr_df, merge_telemetry, parse_garmin_metrics, refresh_google_token
 from sync_runs import build_garmin_device_map
 
 GARMIN_CACHE_DIR = ".sync_cache"
@@ -107,6 +107,27 @@ def reprocess_run(activity_id, garmin_client, google_client: httpx.Client, heade
 
     fitbit_df, fitbit_device_name = fetch_fitbit_hr_df(google_client, headers, start_iso, end_iso)
 
+    # Polar H10 reference data (when present) is carried forward from the
+    # already-stored payload, same reasoning as firmware below: there is no
+    # live "re-fetch" path here (it either came from a one-time AccessLink
+    # pull already consumed, or a manually-uploaded FIT file), so the only
+    # source of truth is what was already published. Built as its own
+    # DataFrame (not spliced into new_payload after the fact) so it goes
+    # through merge_telemetry's own outer-join alignment - safe even if
+    # Garmin/Fitbit's re-fetched time index shifts slightly from before.
+    # Bug history: an earlier version of this function omitted this
+    # entirely, which silently null-wiped polar_hr on every reference run
+    # it touched (caught 2026-07-28, recovered from git history).
+    polar_hr_values = old_payload.get("polar_hr") or []
+    if any(v is not None for v in polar_hr_values):
+        polar_df = pd.DataFrame(
+            {"polar_hr": polar_hr_values},
+            index=pd.to_datetime(old_payload["time"], utc=True),
+        )
+    else:
+        polar_df = None
+    polar_device_name = old_payload.get("polar_device_name")
+
     # Firmware is carried forward from the already-stored payload, not
     # re-fetched: garmin_device_map's firmware is Garmin's *current*
     # firmware at the moment this script runs, and re-scraping Fitbit's
@@ -115,9 +136,17 @@ def reprocess_run(activity_id, garmin_client, google_client: httpx.Client, heade
     # from raw sources; firmware isn't one of the fields it's meant to fix.
     new_payload = merge_telemetry(
         garmin_df, fitbit_df, activity_id, garmin_device_name, fitbit_device_name,
+        polar_df=polar_df, polar_device_name=polar_device_name,
         garmin_firmware_version=old_payload.get("garmin_firmware_version"),
         fitbit_firmware_version=old_payload.get("fitbit_firmware_version"),
     )
+    # Was missing entirely before this pass - reprocess_run() re-derives
+    # everything else from raw sources but never enriched weather, so every
+    # run processed through this script (not just ones published before
+    # elevation/GAP existed) was silently missing temperature_c/humidity_pct.
+    # One Open-Meteo call per run, keyed off the same lat/lon parse_garmin_metrics
+    # already recovers - no new credential/API dependency.
+    new_payload = enrich_with_weather(new_payload)
     return new_payload, old_payload
 
 
@@ -171,6 +200,13 @@ def main(argv=None):
                 )
                 print(f"  garmin_device_name: {new_summary['garmin_device_name']}, fitbit_device_name: {new_summary['fitbit_device_name']}")
                 print(f"  garmin_sample_rate_hz: {new_summary['garmin_sample_rate_hz']}, fitbit_sample_rate_hz: {new_summary['fitbit_sample_rate_hz']}")
+                old_polar_nonnull = sum(1 for v in old_payload.get("polar_hr") or [] if v is not None)
+                new_polar_nonnull = sum(1 for v in new_payload.get("polar_hr") or [] if v is not None)
+                print(f"  polar_hr non-null: {old_polar_nonnull} -> {new_polar_nonnull}")
+                old_elev_nonnull = sum(1 for v in old_payload.get("elevation_m") or [] if v is not None)
+                new_elev_nonnull = sum(1 for v in new_payload.get("elevation_m") or [] if v is not None)
+                print(f"  elevation non-null: {old_elev_nonnull} -> {new_elev_nonnull}")
+                print(f"  temperature_c/humidity_pct: {run.get('temperature_c')}/{run.get('humidity_pct')} -> {new_summary['temperature_c']}/{new_summary['humidity_pct']}")
                 print(f"  flags unchanged: garmin={run.get('garmin_flags') == new_summary['garmin_flags']}, fitbit={run.get('fitbit_flags') == new_summary['fitbit_flags']}")
             else:
                 entry = publish_run.write_run(new_payload, existing_garmin_flags, existing_fitbit_flags)

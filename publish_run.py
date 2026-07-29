@@ -226,6 +226,7 @@ def _summarize(payload: dict, garmin_flags: list[str], fitbit_flags: list[str], 
     fitbit_values = [v for v in payload["fitbit_hr"] if v is not None]
     polar_values = [v for v in payload.get("polar_hr") or [] if v is not None]
     cadence_values = [v for v in payload["cadence_spm"] if v is not None and v > 0]
+    elevation_values = [v for v in payload.get("elevation_m") or [] if v is not None]
 
     trimp_stats = compute_trimp_stats(payload["time"], payload["garmin_hr"], payload["fitbit_hr"], payload.get("polar_hr"))
 
@@ -262,6 +263,11 @@ def _summarize(payload: dict, garmin_flags: list[str], fitbit_flags: list[str], 
         "avg_fitbit_hr": round(sum(fitbit_values) / len(fitbit_values), 1) if fitbit_values else None,
         "avg_polar_hr": round(sum(polar_values) / len(polar_values), 1) if polar_values else None,
         "avg_cadence_spm": round(sum(cadence_values) / len(cadence_values), 1) if cadence_values else None,
+        # Base altitude, not in-run hilliness (that's the grade/elevation
+        # panel on the run detail page) - a run's mean elevation is a
+        # physiologically relevant confound (reduced O2 availability changes
+        # the HR/effort relationship) distinct from terrain within the run.
+        "avg_elevation_m": round(sum(elevation_values) / len(elevation_values), 1) if elevation_values else None,
         "garmin_flags": garmin_flags,
         "fitbit_flags": fitbit_flags,
         "garmin_device_name": payload.get("garmin_device_name"),
