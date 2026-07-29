@@ -341,15 +341,31 @@ def worst_pace_divergence_vs_reference(pace_hr_distribution: dict, device_key: s
 # REPORT.md Section 4). Magnitude-only separation (as opposed to signed,
 # directional separation) was tried and rejected for exactly this reason.
 #
-# The thresholds below (MAE_LOCK_BPM, DIRECTIONAL_GAP_MIN_BPM, etc.) are the
-# same values the EDA validated against real data, carried over deliberately
-# rather than re-guessed - but they are still PROVISIONAL. Per
-# CADENCE_LOCK_DETECTOR_PROPOSAL.md Section 5/7.6, real thresholds get set
-# against Phase 3's manual labels in Phase 4; picking them by eye against 31
-# runs with no held-out check is the same free-parameter curve-fitting this
-# project already rejected once (see stagno_trimp's docstring / the AZM
-# story above). Treat this as Phase 2's deliverable - a per-second SCORE,
-# not a finished decision boundary.
+# PHASE 4 STATUS (2026-07-27, phase4_calibration/eval.py). The thresholds
+# below started as the EDA's own values, carried over deliberately rather
+# than re-guessed. Exactly TWO have since been calibrated against Phase 3's
+# manual labels - _score_stretch's stretch_mae_lock_bpm (4.5 -> 5.0) and
+# directional_gap_min_bpm (25.0 -> 15.0), each documented in place. Every
+# other threshold here was swept and DELIBERATELY LEFT ALONE: either the
+# incumbent already sat inside the leave-one-run-out optimal set
+# (min_stretch_seconds), or the fold-to-fold optimum was unstable
+# (mae_lock_bpm, frac_within_min, window_seconds, frac_within_tol_bpm) and
+# moving it on 6 positive runs would be exactly the free-parameter
+# curve-fitting this project already rejected once (see stagno_trimp's
+# docstring / the AZM story above).
+#
+# Scope of that calibration, stated so it is not over-read: Phase 3 labeled
+# FITBIT ONLY, 11 runs, 19 locked ranges across 6 of them. Nothing here is
+# calibrated for Garmin-as-suspect, and the two runs where the owner sees
+# lock but this method fires zero (23634763296, 23107688892) remain a blind
+# spot on which recall is UNMEASURABLE, not zero-and-fixed - the owner
+# painted zero locked ranges there on the blinded chart, so there is no
+# positive to recall against. Probing them at the loosest tested value of
+# every gate simultaneously does surface something (405 s and 80 s
+# respectively), so the signal is not strictly absent - but that setting is
+# also the one where the negative controls break, and with no labels in
+# those runs there is no way to tell recovered lock from noise. Not a fix.
+# See phase4_calibration/results.json.
 
 # 0.25..4.0 in 0.25 steps, plus rational thirds - phase1_eda/REPORT.md
 # Section 2 found k=1.5 and k=1.333 (4/3) as real, recurring harmonics
@@ -469,8 +485,8 @@ def _merge_loose_stretches(windows: list, mae_lock_bpm: float = 5.0, frac_within
 def _score_stretch(
     stretch: dict,
     min_stretch_seconds: float = 45.0,
-    stretch_mae_lock_bpm: float = 4.5,
-    directional_gap_min_bpm: float = 25.0,
+    stretch_mae_lock_bpm: float = 5.0,
+    directional_gap_min_bpm: float = 15.0,
     gap_saturation_bpm: float = 50.0,
 ) -> tuple:
     """Applies the "strict" + "directional" tiers to one merged stretch -
@@ -483,28 +499,47 @@ def _score_stretch(
       - span (end - start) >= min_stretch_seconds. A single isolated 40s
         window (the window_seconds default) falls short of this by
         design - one window is not sustained evidence by itself.
-      - mean MAE across member windows <= stretch_mae_lock_bpm. Tighter
-        than the 5.0 mae_lock_bpm used to decide which windows merge in
-        the first place - the two are deliberately different thresholds
-        in the EDA (5.0 gates window inclusion, 4.5 gates the merged
-        stretch), not the same number checked twice. Caught during
-        verification: an earlier draft used only the looser 5.0 at the
-        merged level and let a real, dur>=45, mae_mean=4.76 stretch on a
-        negative-flagged run through, where phase1_eda/REPORT.md's own
-        pipeline (which does apply the tighter 4.5) correctly excluded it.
+      - mean MAE across member windows <= stretch_mae_lock_bpm.
+        **CALIBRATED IN PHASE 4 (2026-07-27): 4.5 -> 5.0.** The EDA carried
+        4.5 here to sit tighter than the 5.0 mae_lock_bpm that gates window
+        inclusion, on the strength of one verification anecdote: an earlier
+        draft that used 5.0 at the merged level let a dur>=45,
+        mae_mean=4.76 stretch through on a negative-flagged run. That
+        concern was re-tested directly against the current code in
+        phase4_calibration/eval.py and DOES NOT REPRODUCE - all three
+        negative-flagged runs (23331599739, 23095903019, 23084380435) fire
+        exactly 0 s at 5.0, with or without the directional change below,
+        because the directional gate now removes that stretch on its own.
+        Against Phase 3's labels the 4.5->5.0 move is worth +2.1 pp recall
+        at unchanged precision, and 5.0 is the tightest member of a
+        leave-one-run-out optimal set ({5.0, 5.5, 6.0}) that was identical
+        across all six folds and excluded 4.5 in all six.
       - the stretch's mean HR reads >= directional_gap_min_bpm higher than
         the other device's mean HR over the same members (only upward
         deviation onto a harmonic counts as lock evidence; a device
         reading LOW near a sub-harmonic, e.g. k=1/2 at an easy pace, is
         overwhelmingly a real low HR coinciding with cadence/2, not lock -
-        REPORT.md Section 4). Default 25.0: phase1_eda/eda.py's
-        "directional" filter is layered ON TOP of its "strict" filter
-        (magnitude gap >= 25, either sign), then adds a same-sign gap >= 15
-        check - since magnitude >= 25 already implies signed >= 25 on the
-        positive branch, the real combined effective minimum is 25, not
-        15. A stretch with no member window carrying any valid
-        other-device reading has nothing to compare against and is
-        rejected outright (mean_mae is still returned for diagnostics).
+        REPORT.md Section 4). **CALIBRATED IN PHASE 4 (2026-07-27):
+        25.0 -> 15.0.** The 25.0 default was an artifact of how the EDA
+        composed its filters, not a measured optimum: phase1_eda/eda.py
+        layers "directional" ON TOP of "strict" (magnitude gap >= 25,
+        either sign) and only then adds its own same-sign gap >= 15 check,
+        so the effective minimum came out at 25 even though the stated
+        directional threshold was always 15. Phase 3's labels select 15.0
+        as a UNIQUE (non-tied) optimum in all six leave-one-run-out folds,
+        excluding 25.0 in all six - i.e. the labels independently recover
+        the number the EDA's directional filter nominally intended.
+        Corroboration: 15.0 is also the last value on the sweep before the
+        negative controls break - at 10.0 the detector starts firing 185 s
+        across runs the owner labeled with zero locked ranges, while at
+        15.0 every zero-label run (including all three negative-flagged
+        runs and the never-labeled holdout 23095903019) stays at exactly
+        0 s. The cost is precision 0.999 -> 0.947 (buffered) / 0.952 ->
+        0.888 (strict); the gain is recall 0.599 -> 0.713 and timeline IoU
+        0.581 -> 0.654. See phase4_calibration/results.json.
+        A stretch with no member window carrying any valid other-device
+        reading has nothing to compare against and is rejected outright
+        (mean_mae is still returned for diagnostics).
 
     Returns (qualifies: bool, score: float in [0,1], mean_mae: float,
     gap_bpm: float | None). score is 0.0 for a non-qualifying stretch, else
@@ -513,6 +548,19 @@ def _score_stretch(
     separation this stretch sits, never used to let a *non*-qualifying
     stretch score above 0 (the gates above are gates, not inputs blended
     with everything else).
+
+    Side effect of the Phase-4 directional recalibration, called out so it
+    isn't mistaken for a drift in the data: because the score ramp is
+    anchored on directional_gap_min_bpm, moving that 25.0 -> 15.0 stretches
+    the ramp from a 25 bpm span to a 35 bpm span. The same stretch that
+    scored 1.0 before still scores 1.0, but mid-range stretches now score
+    LOWER than they did (e.g. a 30 bpm gap: 0.20 before, 0.43 after - and a
+    20 bpm gap now scores 0.14 where it previously did not qualify at all).
+    Scores are therefore NOT comparable across the Phase-4 boundary.
+    gap_saturation_bpm was left at 50.0 deliberately: Phase 3's labels are
+    binary locked/not-locked and carry no graded severity, so they contain
+    no evidence about where the ramp should top out. Only the qualification
+    threshold was calibrated; the score ramp above it remains provisional.
     """
     members = stretch["members"]
     dur = stretch["end"] - stretch["start"]
@@ -576,12 +624,29 @@ def cadence_lock_scan(
         score came from, so a firing is always traceable to one concrete,
         explainable stretch rather than an opaque blend of several.
 
-    All thresholds/window sizing are the EDA's own validated values,
-    carried over deliberately rather than re-guessed - but still
-    PROVISIONAL. Per CADENCE_LOCK_DETECTOR_PROPOSAL.md Section 5/7.6, real
-    thresholds get set against Phase 3's manual labels in Phase 4; picking
-    them by eye with no held-out check is the free-parameter curve-fitting
-    this project already rejected once (see stagno_trimp's docstring).
+    Thresholds: see the PHASE 4 STATUS block above the K grid. Two of the
+    EDA's provisional values are now calibrated against Phase 3's labels;
+    the rest are unchanged and stay provisional because the labels did not
+    support moving them.
+
+    Performance against Phase 3 (fitbit only, 11 runs / 19 locked ranges /
+    6 runs with positives; phase4_calibration/eval.py) - reported at the
+    STRETCH level, i.e. comparing each qualifying stretch's whole span to a
+    human-painted range. Precision 0.947 with a 30 s guard band around each
+    label / 0.888 counting every unpainted second as a hard negative;
+    recall 0.713; timeline IoU 0.654. The guard band exists because the
+    owner deliberately did NOT paint the gradual onset/offset ramps, so an
+    unpainted second is "not clearly locked", not a confirmed negative.
+
+    Note the per-second return value below reads much worse than that and
+    the difference is NOT a disagreement: Fitbit (~0.45 Hz) and Garmin
+    (~0.5 Hz) sit on independent grids that intersect on only ~25% of
+    wall-clock seconds, so a continuous 350 s lock is emitted as ~90
+    isolated 1 s dicts separated by None. Per-second recall against a
+    painted range is therefore ~0.21 - almost entirely a sampling-density
+    artifact (recall among instants that HAVE data on both grids is 0.70,
+    matching the stretch-level number). Any consumer aggregating this
+    series must reason over stretch spans, not count non-None firings.
     """
     window_kwargs = window_kwargs or {}
     merge_kwargs = merge_kwargs or {}

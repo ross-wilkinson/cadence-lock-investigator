@@ -1,0 +1,107 @@
+labeled runs: 11 | with positives: ['23022491839', '23275481805', '23298691779', '23657891755', '23672318504', '23697193172']
+BASELINE stretch/30  : P=0.9993 R=0.5988 R_in_domain=0.6020 F1=0.749 IoU=0.5813 grayfired=138
+BASELINE stretch/0   : P=0.9523 R=0.5988 R_in_domain=0.6020 F1=0.735 IoU=0.5813 grayfired=0
+BASELINE sample/30   : P=0.9988 R=0.1795 R_in_domain=0.5964 F1=0.304 IoU=0.1788 grayfired=19
+BASELINE sample/0    : P=0.9767 R=0.1795 R_in_domain=0.5964 F1=0.303 IoU=0.1788 grayfired=0
+  sweep score.min_stretch_seconds=30.0: P=0.9993 Pstrict=0.9523 R=0.5988 F1=0.749 IoU=0.5813 zerolabel_fired=0
+  sweep score.min_stretch_seconds=40.0: P=0.9993 Pstrict=0.9523 R=0.5988 F1=0.749 IoU=0.5813 zerolabel_fired=0
+  sweep score.min_stretch_seconds=45.0: P=0.9993 Pstrict=0.9523 R=0.5988 F1=0.749 IoU=0.5813 zerolabel_fired=0
+  sweep score.min_stretch_seconds=60.0: P=0.9992 Pstrict=0.9531 R=0.5707 F1=0.726 IoU=0.5551 zerolabel_fired=0
+  sweep score.min_stretch_seconds=75.0: P=0.9992 Pstrict=0.9802 R=0.5186 F1=0.683 IoU=0.5132 zerolabel_fired=0
+  sweep score.min_stretch_seconds=90.0: P=0.9991 Pstrict=0.9815 R=0.4542 F1=0.624 IoU=0.4503 zerolabel_fired=0
+  sweep score.min_stretch_seconds=120.0: P=0.9989 Pstrict=0.9784 R=0.3877 F1=0.559 IoU=0.3845 zerolabel_fired=0
+  sweep score.stretch_mae_lock_bpm=3.0: P=0.9990 Pstrict=0.9630 R=0.4353 F1=0.606 IoU=0.4282 zerolabel_fired=0
+  sweep score.stretch_mae_lock_bpm=3.5: P=0.9992 Pstrict=0.9684 R=0.5114 F1=0.676 IoU=0.5029 zerolabel_fired=0
+  sweep score.stretch_mae_lock_bpm=4.0: P=0.9992 Pstrict=0.9531 R=0.5656 F1=0.722 IoU=0.5502 zerolabel_fired=0
+  sweep score.stretch_mae_lock_bpm=4.5: P=0.9993 Pstrict=0.9523 R=0.5988 F1=0.749 IoU=0.5813 zerolabel_fired=0
+  sweep score.stretch_mae_lock_bpm=5.0: P=0.9993 Pstrict=0.9510 R=0.6193 F1=0.765 IoU=0.6002 zerolabel_fired=0
+  sweep score.stretch_mae_lock_bpm=5.5: P=0.9993 Pstrict=0.9510 R=0.6193 F1=0.765 IoU=0.6002 zerolabel_fired=0
+  sweep score.stretch_mae_lock_bpm=6.0: P=0.9993 Pstrict=0.9510 R=0.6193 F1=0.765 IoU=0.6002 zerolabel_fired=0
+  sweep score.directional_gap_min_bpm=10.0: P=0.8572 Pstrict=0.8022 R=0.7046 F1=0.773 IoU=0.6003 zerolabel_fired=185
+  sweep score.directional_gap_min_bpm=15.0: P=0.9453 Pstrict=0.8874 R=0.6919 F1=0.799 IoU=0.6361 zerolabel_fired=0
+  sweep score.directional_gap_min_bpm=20.0: P=0.9809 Pstrict=0.9362 R=0.6287 F1=0.766 IoU=0.6029 zerolabel_fired=0
+  sweep score.directional_gap_min_bpm=25.0: P=0.9993 Pstrict=0.9523 R=0.5988 F1=0.749 IoU=0.5813 zerolabel_fired=0
+  sweep score.directional_gap_min_bpm=30.0: P=0.9992 Pstrict=0.9584 R=0.5574 F1=0.716 IoU=0.5442 zerolabel_fired=0
+  sweep score.directional_gap_min_bpm=35.0: P=0.9988 Pstrict=0.9696 R=0.3490 F1=0.517 IoU=0.3452 zerolabel_fired=0
+  sweep score.directional_gap_min_bpm=40.0: P=0.9988 Pstrict=0.9696 R=0.3490 F1=0.517 IoU=0.3452 zerolabel_fired=0
+  sweep merge.mae_lock_bpm=3.5: P=1.0000 Pstrict=0.9695 R=0.4839 F1=0.652 IoU=0.4767 zerolabel_fired=0
+  sweep merge.mae_lock_bpm=4.0: P=0.9992 Pstrict=0.9651 R=0.5221 F1=0.686 IoU=0.5124 zerolabel_fired=0
+  sweep merge.mae_lock_bpm=4.5: P=0.9993 Pstrict=0.9574 R=0.5917 F1=0.743 IoU=0.5765 zerolabel_fired=0
+  sweep merge.mae_lock_bpm=5.0: P=0.9993 Pstrict=0.9523 R=0.5988 F1=0.749 IoU=0.5813 zerolabel_fired=0
+  sweep merge.mae_lock_bpm=5.5: P=0.9993 Pstrict=0.9505 R=0.5966 F1=0.747 IoU=0.5786 zerolabel_fired=0
+  sweep merge.mae_lock_bpm=6.0: P=0.9993 Pstrict=0.9513 R=0.6073 F1=0.755 IoU=0.5890 zerolabel_fired=0
+  sweep merge.mae_lock_bpm=7.0: P=0.9993 Pstrict=0.9483 R=0.6013 F1=0.751 IoU=0.5822 zerolabel_fired=0
+  sweep merge.frac_within_min=0.4: P=0.9975 Pstrict=0.9507 R=0.5988 F1=0.748 IoU=0.5807 zerolabel_fired=0
+  sweep merge.frac_within_min=0.5: P=0.9975 Pstrict=0.9507 R=0.5988 F1=0.748 IoU=0.5807 zerolabel_fired=0
+  sweep merge.frac_within_min=0.6: P=0.9993 Pstrict=0.9523 R=0.5988 F1=0.749 IoU=0.5813 zerolabel_fired=0
+  sweep merge.frac_within_min=0.7: P=0.9993 Pstrict=0.9545 R=0.6063 F1=0.755 IoU=0.5892 zerolabel_fired=0
+  sweep merge.frac_within_min=0.8: P=1.0000 Pstrict=0.9677 R=0.5525 F1=0.712 IoU=0.5425 zerolabel_fired=0
+  sweep merge.frac_within_min=0.9: P=1.0000 Pstrict=0.9738 R=0.4454 F1=0.616 IoU=0.4401 zerolabel_fired=0
+  sweep window.window_seconds=20: P=1.0000 Pstrict=1.0000 R=0.1275 F1=0.226 IoU=0.1275 zerolabel_fired=0
+  sweep window.window_seconds=30: P=1.0000 Pstrict=0.9710 R=0.4015 F1=0.573 IoU=0.3967 zerolabel_fired=0
+  sweep window.window_seconds=40: P=0.9993 Pstrict=0.9523 R=0.5988 F1=0.749 IoU=0.5813 zerolabel_fired=0
+  sweep window.window_seconds=50: P=0.9975 Pstrict=0.9535 R=0.6067 F1=0.754 IoU=0.5893 zerolabel_fired=0
+  sweep window.window_seconds=60: P=0.9976 Pstrict=0.9490 R=0.6221 F1=0.766 IoU=0.6020 zerolabel_fired=0
+  sweep window.frac_within_tol_bpm=4.0: P=0.9993 Pstrict=0.9550 R=0.5861 F1=0.739 IoU=0.5704 zerolabel_fired=0
+  sweep window.frac_within_tol_bpm=5.0: P=0.9993 Pstrict=0.9514 R=0.6033 F1=0.752 IoU=0.5852 zerolabel_fired=0
+  sweep window.frac_within_tol_bpm=6.0: P=0.9993 Pstrict=0.9523 R=0.5988 F1=0.749 IoU=0.5813 zerolabel_fired=0
+  sweep window.frac_within_tol_bpm=7.0: P=0.9975 Pstrict=0.9507 R=0.5988 F1=0.748 IoU=0.5807 zerolabel_fired=0
+  sweep window.frac_within_tol_bpm=8.0: P=0.9975 Pstrict=0.9507 R=0.5988 F1=0.748 IoU=0.5807 zerolabel_fired=0
+  LORO score.min_stretch_seconds (incumbent 45.0): opt sets [[30.0, 40.0, 45.0], [30.0, 40.0, 45.0], [30.0, 40.0, 45.0], [30.0, 40.0, 45.0], [30.0, 40.0, 45.0], [30.0, 40.0, 45.0]] | identical=True | incumbent excluded in 0/6 folds
+  LORO score.stretch_mae_lock_bpm (incumbent 4.5): opt sets [[5.0, 5.5, 6.0], [5.0, 5.5, 6.0], [5.0, 5.5, 6.0], [5.0, 5.5, 6.0], [5.0, 5.5, 6.0], [5.0, 5.5, 6.0]] | identical=True | incumbent excluded in 6/6 folds
+  LORO score.directional_gap_min_bpm (incumbent 25.0): opt sets [[15.0], [15.0], [15.0], [15.0], [15.0], [15.0]] | identical=True | incumbent excluded in 6/6 folds
+  LORO merge.mae_lock_bpm (incumbent 5.0): opt sets [[7.0], [6.0], [6.0], [6.0], [6.0], [6.0]] | identical=False | incumbent excluded in 6/6 folds
+  LORO merge.frac_within_min (incumbent 0.6): opt sets [[0.7], [0.7], [0.4, 0.5, 0.6], [0.7], [0.7], [0.7]] | identical=False | incumbent excluded in 5/6 folds
+  LORO window.window_seconds (incumbent 40): opt sets [[60], [60], [60], [50], [60], [60]] | identical=False | incumbent excluded in 6/6 folds
+  LORO window.frac_within_tol_bpm (incumbent 6.0): opt sets [[5.0], [5.0], [6.0, 7.0, 8.0], [5.0], [5.0], [5.0]] | identical=False | incumbent excluded in 5/6 folds
+CANDIDATE stretch/30: P=0.9468 R=0.7125 F1=0.813 IoU=0.6538 grayfired=232
+CANDIDATE stretch/0 : P=0.8881
+  held-out 23022491839: R 0.256->0.490 P 1.0->0.761 IoU 0.246->0.396
+  held-out 23275481805: R 0.974->0.974 P 1.0->0.92 IoU 0.959->0.886
+  held-out 23298691779: R 0.834->0.978 P 0.996->0.997 IoU 0.769->0.861
+  held-out 23657891755: R 0.306->0.539 P 1.0->1.0 IoU 0.299->0.512
+  held-out 23672318504: R 0.690->0.735 P 1.0->1.0 IoU 0.690->0.735
+  held-out 23697193172: R 0.637->0.637 P 1.0->1.0 IoU 0.616->0.616
+  unlabeled holdout runs: 24 | negative-flagged holdouts: [('23095903019', 0, 0)] | positive_cadence holdouts firing under candidate: 12 of 23
+  negcontrol (a): {'23084380435': 0, '23107688892': 0, '23331599739': 0, '23634763296': 0, '23728858378': 0}
+  blind/neg probe 23084380435: incumbent=0 candidate=0 loosest=0
+  blind/neg probe 23107688892: incumbent=0 candidate=0 loosest=405
+  blind/neg probe 23331599739: incumbent=0 candidate=0 loosest=0
+  blind/neg probe 23634763296: incumbent=0 candidate=0 loosest=80
+  blind/neg probe 23728858378: incumbent=0 candidate=0 loosest=0
+  negcontrol (b) 23022491839 trial0: real=615 circshift=210 permuted=0
+  negcontrol (b) 23022491839 trial1: real=615 circshift=325 permuted=0
+  negcontrol (b) 23022491839 trial2: real=615 circshift=0 permuted=0
+  negcontrol (b) 23022491839 trial3: real=615 circshift=0 permuted=0
+  negcontrol (b) 23022491839 trial4: real=615 circshift=0 permuted=0
+  negcontrol (b) 23275481805 trial0: real=700 circshift=630 permuted=90
+  negcontrol (b) 23275481805 trial1: real=700 circshift=0 permuted=160
+  negcontrol (b) 23275481805 trial2: real=700 circshift=715 permuted=45
+  negcontrol (b) 23275481805 trial3: real=700 circshift=490 permuted=45
+  negcontrol (b) 23275481805 trial4: real=700 circshift=100 permuted=180
+  negcontrol (b) 23298691779 trial0: real=745 circshift=490 permuted=165
+  negcontrol (b) 23298691779 trial1: real=745 circshift=475 permuted=45
+  negcontrol (b) 23298691779 trial2: real=745 circshift=310 permuted=100
+  negcontrol (b) 23298691779 trial3: real=745 circshift=400 permuted=45
+  negcontrol (b) 23298691779 trial4: real=745 circshift=250 permuted=45
+  negcontrol (b) 23657891755 trial0: real=475 circshift=500 permuted=0
+  negcontrol (b) 23657891755 trial1: real=475 circshift=375 permuted=0
+  negcontrol (b) 23657891755 trial2: real=475 circshift=0 permuted=0
+  negcontrol (b) 23657891755 trial3: real=475 circshift=390 permuted=0
+  negcontrol (b) 23657891755 trial4: real=475 circshift=0 permuted=0
+  negcontrol (b) 23672318504 trial0: real=815 circshift=695 permuted=0
+  negcontrol (b) 23672318504 trial1: real=815 circshift=705 permuted=0
+  negcontrol (b) 23672318504 trial2: real=815 circshift=875 permuted=0
+  negcontrol (b) 23672318504 trial3: real=815 circshift=280 permuted=0
+  negcontrol (b) 23672318504 trial4: real=815 circshift=610 permuted=0
+  negcontrol (b) 23697193172 trial0: real=395 circshift=300 permuted=0
+  negcontrol (b) 23697193172 trial1: real=395 circshift=130 permuted=0
+  negcontrol (b) 23697193172 trial2: real=395 circshift=0 permuted=0
+  negcontrol (b) 23697193172 trial3: real=395 circshift=515 permuted=0
+  negcontrol (b) 23697193172 trial4: real=395 circshift=340 permuted=0
+  negcontrol (b) SUMMARY circshift: {'mean': 0.534, 'median': 0.638, 'max': 1.304, 'frac_trials_above_0.5': 0.567, 'frac_trials_zero': 0.233}
+  negcontrol (b) SUMMARY permuted : {'mean': 0.043, 'median': 0.0, 'max': 0.257, 'frac_trials_above_0.5': 0.0, 'frac_trials_zero': 0.667}
+  negcontrol (c): {'fired': {'n': 1059, 'median': 3.0, 'p90': 7.0, 'frac_within_5bpm': 0.81}, 'unfired': {'n': 5623, 'median': 8.0, 'p90': 18.0, 'frac_within_5bpm': 0.376}}
+  boundaries[pre_phase4]: matched 13/19 onset_err mean 44.2 med -3 | offset_err mean -71.5 med -36
+  boundaries[candidate]: matched 16/19 onset_err mean 38.2 med -3 | offset_err mean -55.8 med -1
+wrote C:\repos\cadence-lock-investigator\phase4_calibration\results.json
