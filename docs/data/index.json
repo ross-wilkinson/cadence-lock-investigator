@@ -10,10 +10,12 @@
     "avg_cadence_spm": 135.6,
     "avg_elevation_m": -1.3,
     "garmin_flags": [
-      "unreviewed"
+      "positive_cadence",
+      "positive_lag"
     ],
     "fitbit_flags": [
-      "unreviewed"
+      "positive_cadence",
+      "positive_blunder"
     ],
     "garmin_device_name": "Garmin Instinct 2X Solar",
     "fitbit_device_name": "Fitbit Inspire 3",
@@ -52,10 +54,11 @@
     "avg_cadence_spm": 154.5,
     "avg_elevation_m": -2.9,
     "garmin_flags": [
-      "unreviewed"
+      "negative"
     ],
     "fitbit_flags": [
-      "unreviewed"
+      "positive_cadence",
+      "positive_blunder"
     ],
     "garmin_device_name": "Garmin Instinct 2X Solar",
     "fitbit_device_name": "Fitbit Inspire 3",
