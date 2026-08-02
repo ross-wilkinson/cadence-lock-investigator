@@ -13,6 +13,13 @@ script later only picks up runs not yet published.
     python sync_runs.py --dry-run                                    # safe: list + match only, writes nothing
     python sync_runs.py                                              # full backfill from 2026-01-01 to today
     python sync_runs.py --start-date 2026-07-01 --end-date 2026-07-21
+
+Already-published runs are normally skipped (see already_published_ids()
+below). To pick up Polar data for a run published before Polar had synced,
+force a re-publish of that one activity by id (still requires it to fall
+within --start-date/--end-date and match a Google session):
+
+    python sync_runs.py --start-date 2026-07-20 --end-date 2026-07-22 --force-activity-id 123456789
 """
 import argparse
 import json
@@ -314,6 +321,16 @@ def main(argv=None):
     parser.add_argument("--tolerance-minutes", type=float, default=15.0)
     parser.add_argument("--delay-seconds", type=float, default=2.0)
     parser.add_argument("--max-retries", type=int, default=3)
+    parser.add_argument(
+        "--force-activity-id", type=int, nargs="+", default=[],
+        help="Re-fetch and re-publish these Garmin activity ids even though "
+             "they're already in the index. For when a run was published "
+             "before Polar had synced to the cloud - a plain re-run would "
+             "otherwise skip it as already-published and never retry the "
+             "Polar lookup. The activity must still fall within "
+             "--start-date/--end-date and match a Google session to be "
+             "picked up.",
+    )
     args = parser.parse_args(argv)
 
     garmin_client = Garmin(os.getenv("GARMIN_EMAIL"), os.getenv("GARMIN_PASSWORD"))
@@ -342,13 +359,18 @@ def main(argv=None):
         )
 
         published_ids = already_published_ids()
+        force_ids = set(args.force_activity_id)
         to_publish = []
         skipped_already_published = []
         for activity, session in matched:
-            if activity["activityId"] in published_ids:
+            if activity["activityId"] in published_ids and activity["activityId"] not in force_ids:
                 skipped_already_published.append(activity["activityId"])
             else:
                 to_publish.append((activity, session))
+
+        unmatched_force_ids = force_ids - {a["activityId"] for a, _ in to_publish}
+        if unmatched_force_ids:
+            print(f"WARNING: --force-activity-id {sorted(unmatched_force_ids)} not found in matched Garmin/Google pairs for this date range - check --start-date/--end-date and that a Google Health session matched.")
 
         if args.dry_run:
             print("--- DRY RUN SUMMARY (nothing fetched or written) ---")
@@ -357,6 +379,8 @@ def main(argv=None):
             print(f"Matched pairs:                {len(matched)}")
             print(f"Already published (skipped):  {len(skipped_already_published)}")
             print(f"Would publish:                {len(to_publish)}")
+            if force_ids:
+                print(f"Forced re-publish requested:  {sorted(force_ids)}")
             print(f"Unmatched Garmin activities:  {len(unmatched_garmin)}")
             print(f"Unmatched Google sessions:    {len(unmatched_google)}")
             return
