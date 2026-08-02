@@ -1,5 +1,47 @@
 [
   {
+    "id": 23827978093,
+    "start": "2026-08-02 10:09:05-07:00",
+    "end": "2026-08-02 10:54:20-07:00",
+    "duration_seconds": 2716,
+    "avg_garmin_hr": 132.0,
+    "avg_fitbit_hr": 132.4,
+    "avg_polar_hr": null,
+    "avg_cadence_spm": 150.0,
+    "avg_elevation_m": 0.3,
+    "garmin_flags": [
+      "unreviewed"
+    ],
+    "fitbit_flags": [
+      "unreviewed"
+    ],
+    "garmin_device_name": "Garmin Instinct 2X Solar",
+    "fitbit_device_name": "Fitbit Inspire 3",
+    "polar_device_name": null,
+    "garmin_sample_rate_hz": 0.5,
+    "fitbit_sample_rate_hz": 0.5,
+    "polar_sample_rate_hz": null,
+    "garmin_coverage_pct": 50.2,
+    "fitbit_coverage_pct": 45.5,
+    "polar_coverage_pct": 0.0,
+    "garmin_vs_polar_worst_bucket": null,
+    "garmin_vs_polar_gap_bpm": null,
+    "garmin_vs_polar_true_hr_bpm": null,
+    "fitbit_vs_polar_worst_bucket": null,
+    "fitbit_vs_polar_gap_bpm": null,
+    "fitbit_vs_polar_true_hr_bpm": null,
+    "temperature_c": 17.9,
+    "humidity_pct": 65.0,
+    "total_trimp_garmin": 84.87,
+    "total_trimp_fitbit": 82.48,
+    "total_trimp_polar": null,
+    "trimp_difference": 2.4,
+    "trimp_difference_garmin_polar": null,
+    "trimp_difference_fitbit_polar": null,
+    "total_pace_buckets": 19,
+    "buckets_with_hr_divergence": 0
+  },
+  {
     "id": 23803682989,
     "start": "2026-07-31 10:10:45-07:00",
     "end": "2026-07-31 11:01:58-07:00",
